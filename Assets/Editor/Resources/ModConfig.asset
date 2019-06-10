@@ -11,10 +11,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 615501dbe4f3fe94fbf4b564abb10237, type: 3}
   m_Name: ModConfig
   m_EditorClassIdentifier: 
-  id: TemplateModule
-  title: Espik's Template Module
+  id: MechanicalSwitches
+  title: Mechanical Switches
   author: Espik
-  description: A description.
-  version: v1.0
-  outputFolder: C:\Users\sbick\Desktop\KTaNE\build
+  description: 'Mechanical Switches v1.0
+
+    "Tic tac TAK TAK TAK"
+
+
+    Module ID: MechanicalSwitches
+
+
+    Authors: Espik, Pruz
+
+
+    Manual: (available soon)'
+  version: v0.1
+  outputFolder: build
   previewImage: {fileID: 0}

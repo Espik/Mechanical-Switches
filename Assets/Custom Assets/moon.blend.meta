@@ -2,7 +2,15 @@ fileFormatVersion: 2
 guid: b50969c1625c55f4daf71e5b9c231886
 ModelImporter:
   serializedVersion: 22
-  fileIDToRecycleName: {}
+  fileIDToRecycleName:
+    100000: //RootNode
+    400000: //RootNode
+    2100000: unnamed
+    2300000: //RootNode
+    3300000: //RootNode
+    4300000: Circle
+    7400000: Default Take
+    9500000: //RootNode
   externalObjects: {}
   materials:
     importMaterials: 1
