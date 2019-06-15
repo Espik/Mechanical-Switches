@@ -343,7 +343,7 @@
 					<p>When moving a key, follow the first of these rules that applies:</p>
 					
 					<ol>
-						<li>If a key cannot move downwards or upwards in either horizontal direction, the key does not move. The rule on the space it's on is ignored.</li>
+						<li>If a key cannot move downwards or upwards in either horizontal direction, or if this is the fifth time following this list of rules for this movement, the key does not move. The rule on the space it's on is ignored.</li>
 						<li>If a key cannot move downwards in either horizontal direction and the last space it landed on for the current iteration was true, rotate <em>Table 3</em> 90° clockwise.</li> 
 						<li>If a key cannot move downwards in either horizontal direction, rotate <em>Table 3</em> 180°.</li>
 						<li>If a key cannot move in the specified direction because a space in that direction doesn't exist, the specified direction for the movement in this iteration is actually downwards in the opposite horizontal direction.</li>
@@ -571,10 +571,10 @@
 						Release it immediately.
 						Failure to do so in less than two seconds will result in a strike.</li>
 						
-						<li>If the key is not displaying a color, and the key is <i>not</i> clear, release the key when the last digit of the bomb's timer is the column number on <em>Table 1</em> where the key's switch is located, starting at 1.</li>
+						<li>If the key is not flashing a color, and the key is <i>not</i> clear, release the key when the last digit of the bomb's timer is the column number on <em>Table 1</em> where the key's switch is located, starting at 1.</li>
 					</ul>
 					
-					<p><strong>Things to note when idle:</strong></p>
+					<p><strong>Things to note when tapping the keys:</strong></p>
 					
 					<p>Occasionally, after tapping a key, its light will continue to stay lit.
 					It will either be always lit or it will be displaying a letter in Morse code.</p>

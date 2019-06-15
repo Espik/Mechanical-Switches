@@ -11,18 +11,25 @@ public class MechanicalKey {
     private KeySwitch keySwitch;
     private Renderer screen;
     private int number;
+    private int condition;
+    private bool pressSafe = true;
+    private int pressTime = -1;
     private char text;
 
     private int[] gridPos = { 0, 0 };
     private string[] gridPosLogger = new string[2];
 
     // Default Setup
-    public MechanicalKey(KMSelectable key, KeySwitch keySwitch, Renderer screen, int number, char text) {
+    public MechanicalKey(KMSelectable key, KeySwitch keySwitch, Renderer screen, int condition, int number, char text) {
         this.key = key;
         this.keySwitch = keySwitch;
         this.screen = screen;
+        this.condition = condition;
         this.number = number;
         this.text = text;
+
+        pressSafe = true;
+        pressTime = -1;
 
         this.screen.material = this.keySwitch.GetMaterial();
     }
@@ -41,8 +48,20 @@ public class MechanicalKey {
         this.screen = screen;
     }
 
+    public void SetCondition(int condition) {
+        this.condition = condition;
+    }
+
     public void SetNumber(int number) {
         this.number = number;
+    }
+
+    public void SetPressSafe(bool pressSafe) {
+        this.pressSafe = pressSafe;
+    }
+
+    public void SetPressTime(int pressTime) {
+        this.pressTime = pressTime;
     }
 
     public void SetText(char text) {
@@ -52,8 +71,8 @@ public class MechanicalKey {
     public void SetGridPos(int[] gridPos) {
         this.gridPos = gridPos;
 
-        gridPosLogger[0] = SetGridPosLogger(gridPos[1]);
-        gridPosLogger[1] = (gridPos[0] + 1).ToString();
+        gridPosLogger[0] = SetGridPosLogger(this.gridPos[1]);
+        gridPosLogger[1] = (this.gridPos[0] + 1).ToString();
     }
 
     // Sets the grid position for logging
@@ -72,6 +91,9 @@ public class MechanicalKey {
         }
     }
 
+    public void SetMaterial(Material material) {
+        screen.material = material;
+    }
 
     // Gets info
     public KMSelectable GetKey() {
@@ -86,8 +108,20 @@ public class MechanicalKey {
         return screen;
     }
 
+    public int GetCondition() {
+        return condition;
+    }
+
     public int GetNumber() {
         return number;
+    }
+
+    public bool GetPressSafe() {
+        return pressSafe;
+    }
+
+    public int GetPressTime() {
+        return pressTime;
     }
 
     public char GetText() {

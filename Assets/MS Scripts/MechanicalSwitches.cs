@@ -7,23 +7,14 @@ using KModkit;
 
 /* Things left to implement:
  * 
- * Keys with the possibility of going faulty (Page 6 - 7 info)
- * Add a big screen that displays the information of the switch when it is tapped 
- * Change the font of the keys
- * Change the material of the keys
- * Change the background of the module
- * Create lights on the screens that can be toggled
- * Make the module solvable
- * Create an SVG for the manual
- * Fix an infinite loop in MoveKeys()
- * Make TP code
- * Detect lengths of holding the keys
+ * Find and fix a bug in the release time
+ * Having the key possibly display a Morse Code letter
+ * Make clear keys have a clear material
  * Animate the key pressing
- * Get sounds for keyboard clicks
- * Write code that tests for if any unlit indicators match a letter in a switch's name
  * Redo the manual's PDF
- * Add colorblind mode
- * Add a preview image
+ * Add a colorblind mode
+ * Fix MoveKeys() being completely broken
+ * Write code that tests for if any unlit indicators match a letter in a switch's color name
  */
 
 // Repo module desc: "Select each button and figure out which keys make which sounds. Using these sounds, figure out when to hold each button down and when you should release them. Watch out for faulty keys!"
@@ -36,24 +27,38 @@ public class MechanicalSwitches : MonoBehaviour {
     public KMSelectable[] Keys;
     public Renderer[] Screens;
     public Material[] Colors;
+    public Material[] WrongColors;
+    public Material BlankColor;
+    public Light[] Lights;
+    public TextMesh BigScreenText;
 
     // Logging info
     private static int moduleIdCounter = 1;
     private int moduleId;
     private bool moduleSolved = false;
 
-    // Solving info
+    // General solving info
     private MechanicalKey[] mechanicalKeys = new MechanicalKey[5];
-    private bool[] rules = new bool[41];
     private KeySwitch[] switches = new KeySwitch[39];
     private int[] keyOrder = new int[5];
-    private int[] holdOrder = new int[5];
+    private bool loopBreak = false;
+
+    // Button press info
+    private int keyInOrder = 0;
+    private int keyHolding = -1;
+    private int keyPresses = 0;
+    private int releaseTime = -1;
+    private float faultyReleaseTime = 2.5f;
+    private float holdingTime = -0.1f;
+    private bool willStrike = false;
 
     // Table grid info
+    private int[] holdOrder = new int[5];
     private int[][] tableGrid = new int[9][];
     private int[][] tableGridPos = new int[9][];
     private char[] serialNumber = new char[6];
     private bool[] serialNumberConversions = new bool[15];
+    private bool[] rules = new bool[41];
     private int iterations = 0;
     private bool[] indicatorMatch = new bool[5];
 
@@ -61,8 +66,9 @@ public class MechanicalSwitches : MonoBehaviour {
     /* 0 = North
      * 1 = East
      * 2 = South
-     * 3 = East
+     * 3 = West
      */ 
+
 
     // Ran as bomb loads
     private void Awake() {
@@ -76,13 +82,18 @@ public class MechanicalSwitches : MonoBehaviour {
                 KeyPressed(j);
                 return false;
             };
+
+            Keys[i].OnInteractEnded += delegate () {
+                KeyReleased(j);
+            };
         }
     }
 
     // Gets module ready
-    private void Start () {
+    private void Start() {
         SetRules();
         SetSwitches();
+        TurnOffLights();
 
         // Turns serial number into movement directions
         serialNumber = Bomb.GetSerialNumber().ToCharArray();
@@ -93,22 +104,45 @@ public class MechanicalSwitches : MonoBehaviour {
 
     // Runs when lights turn on
     private void OnActivate() {
+        BigScreenText.text = "";
         ModuleReset();
     }
-	
-	// Currently unused - probably not for long
-	private void Update () {
-		// Ran once every frame
-	}
 
+
+    // If module strikes
+    private void Strike() {
+        willStrike = false;
+        Debug.LogFormat("[Mechanical Switches #{0}] Strike! Module reseting...\n\n", moduleId);
+        GetComponent<KMBombModule>().HandleStrike();
+        ModuleReset();
+    }
+
+    // If module solves
+    private void Solve() {
+        Debug.LogFormat("[Mechanical Switches #{0}] Module Solved!", moduleId);
+        GetComponent<KMBombModule>().HandlePass();
+        moduleSolved = true;
+        keyPresses = 0;
+    }
 
     // Module resets and/or starts
     private void ModuleReset() {
         iterations = 0;
         SetKeys();
         keyOrder = GetOrderRule();
-        GetHoldOrder();
+        //GetHoldOrder(); - Currently unused - need to fix
+        holdOrder = keyOrder; // Placeholder
+        keyInOrder = 0;
+        TurnOffLights();
     }
+
+    // Turns off the lights
+    private void TurnOffLights() {
+        for (int i = 0; i < Lights.Length; i++) {
+            Lights[i].enabled = false;
+        }
+    }
+
 
     // Sets the switches in order
     private void SetSwitches() {
@@ -144,115 +178,48 @@ public class MechanicalSwitches : MonoBehaviour {
          * 27:  Zealios
          */
 
-        float zealiosRandom = UnityEngine.Random.Range(62.0f, 78.0f);
-        float aliazRandom = UnityEngine.Random.Range(60.0f, 100.0f);
+        int zealiosRandom = UnityEngine.Random.Range(62, 78);
+        int aliazRandom = UnityEngine.Random.Range(60, 100);
 
-        switches[0] = new KeySwitch("Cherry Black", "Cherry", "Black", Colors[1], "Linear", 60.0f, 2.0f, 4.0f); // Cherry Black
-        switches[1] = new KeySwitch("Cherry Speed Silver", "Cherry", "Speed Silver", Colors[23], "Linear", 45.0f, 1.2f, 3.4f); // Cherry Speed Silver
-        switches[2] = new KeySwitch("Gateron Black", "Gateron", "Black", Colors[2], "Linear", 50.0f, 2.0f, 4.0f); // Gateron Black
-        switches[3] = new KeySwitch("Kailh Box Black", "Kailh Box", "Black", Colors[2], "Linear", 60.0f, 1.8f, 3.6f); // Kailh Box Black
-        switches[4] = new KeySwitch("Kailh Pro Burgundy", "Kailh Pro", "Burgundy", Colors[6], "Linear", 50.0f, 1.7f, 3.6f); // Kailh Pro Burgundy
-        switches[5] = new KeySwitch("Cherry Red", "Cherry", "Red", Colors[22], "Linear", 45.0f, 2.0f, 4.0f); // Cherry Red
-        switches[6] = new KeySwitch("Gateron Red", "Gateron", "Red", Colors[22], "Linear", 50.0f, 2.0f, 4.0f); // Gateron Red
-        switches[7] = new KeySwitch("Kailh Box Red", "Kailh Box", "Red", Colors[22], "Linear", 45.0f, 1.8f, 3.6f); // Kailh Box Red
-        switches[8] = new KeySwitch("Kailh Pro Purple", "Kailh Pro", "Purple", Colors[21], "Tactile", 50.0f, 1.7f, 3.6f); // Kailh Pro Purple
-        switches[9] = new KeySwitch("Cherry Brown", "Cherry", "Brown", Colors[5], "Tactile", 45.0f, 2.0f, 4.0f); // Cherry Brown
-        switches[10] = new KeySwitch("Gateron Brown", "Gateron", "Brown", Colors[5], "Tactile", 50.0f, 2.0f, 4.0f); // Gateron Brown
-        switches[11] = new KeySwitch("Kailh Box Brown", "Kailh Box", "Brown", Colors[5], "Tactile", 60.0f, 1.8f, 3.6f); // Kailh Box Brown
-        switches[12] = new KeySwitch("Kalih Pro Green", "Kailh Pro", "Green", Colors[14], "Clicky", 50.0f, 1.7f, 3.6f); // Kailh Pro Green
-        switches[13] = new KeySwitch("Cherry Blue", "Cherry", "Blue", Colors[3], "Clicky", 50.0f, 2.2f, 4.0f); // Cherry Blue
-        switches[14] = new KeySwitch("Gateron Blue", "Gateron", "Blue", Colors[3], "Clicky", 55.0f, 2.2f, 4.0f); // Gateron Blue
-        switches[15] = new KeySwitch("Kailh Box White", "Kailh Box", "White", Colors[25], "Clicky", 55.0f, 1.8f, 3.6f); // Kailh Box White
-        switches[16] = new KeySwitch("Kailh Speed Silver", "Kailh", "Speed Silver", Colors[23], "Linear", 50.0f, 1.1f, 3.5f); // Kailh Speed Silver
-        switches[17] = new KeySwitch("Cherry Clear", "Cherry", "Clear", Colors[8], "Tactile", 65.0f, 2.0f, 4.0f); // Cherry Clear
-        switches[18] = new KeySwitch("Gateron Clear", "Gateron", "Clear", Colors[9], "Linear", 35.0f, 2.0f, 4.0f); // Gateron Clear
-        switches[19] = new KeySwitch("Kailh Box Navy", "Kailh Box", "Navy", Colors[18], "Clicky", 75.0f, 1.7f, 3.6f); // Kailh Box Navy
-        switches[20] = new KeySwitch("Kailh Speed Copper", "Kailh", "Copper", Colors[10], "Tactile", 50.0f, 1.1f, 3.5f); // Kailh Speed Copper
-        switches[21] = new KeySwitch("Cherry White", "Cherry", "White", Colors[25], "Clicky", 85.0f, 2.0f, 4.0f); // Cherry White
-        switches[22] = new KeySwitch("Gateron Yellow", "Gateron", "Yellow", Colors[26], "Linear", 50.0f, 2.0f, 4.0f); // Gateron Yellow
-        switches[23] = new KeySwitch("Kailh Box Jade", "Kailh Box", "Jade", Colors[17], "Clicky", 65.0f, 1.7f, 3.6f); // Kailh Box Jade
-        switches[24] = new KeySwitch("Kailh Speed Bronze", "Kailh", "Bronze", Colors[4], "Clicky", 50.0f, 1.1f, 3.5f); // Kailh Speed Bronze
-        switches[25] = new KeySwitch("Cherry Green", "Cherry", "Green", Colors[13], "Tactile", 80.0f, 2.2f, 4.0f); // Cherry Green
-        switches[26] = new KeySwitch("Gateron Green", "Gateron", "Green", Colors[13], "Clicky", 80.0f, 2.0f, 4.0f); // Gateron Green
-        switches[27] = new KeySwitch("Kailh Box Dark Yellow", "Kailh Box", "Dark Yellow", Colors[11], "Linear", 70.0f, 1.8f, 3.6f); // Kailh Box Dark Yellow
-        switches[28] = new KeySwitch("Kailh Speed Gold", "Kailh", "Speed Gold", Colors[12], "Clicky", 50.0f, 1.4f, 3.5f); // Kailh Speed Gold
-        switches[29] = new KeySwitch("Razer Green", "Razer", "Green", Colors[15], "Clicky", 50.0f, 1.9f, 4.0f); // Razer Green
-        switches[30] = new KeySwitch("Cherry Grey (Linear)", "Cherry", "Grey", Colors[16], "Linear", 80.0f, 2.0f, 4.0f); // Cherry Grey (Linear)
-        switches[31] = new KeySwitch("Gateron Tealios", "Gateron", "Tealios", Colors[24], "Linear", 67.0f, 0.0f, 0.0f); // Gateron Tealios
-        switches[32] = new KeySwitch("Kailh Box Burnt Orange", "Kailh Box", "Burnt Orange", Colors[7], "Tactile", 70.0f, 1.8f, 3.6f); // Kailh Box Burnt Orange
-        switches[33] = new KeySwitch("Razer Orange", "Razer", "Orange", Colors[19], "Silent", 45.0f, 1.9f, 4.0f); // Razer Orange
-        switches[34] = new KeySwitch("Cherry Grey (Tactile)", "Cherry", "Grey", Colors[16], "Tactile", 80.0f, 2.0f, 4.0f); // Cherry Grey (Tactile)
-        switches[35] = new KeySwitch("Gateron Zealios", "Gateron", "Zealios", Colors[27], "Tactile", zealiosRandom, 0.0f, 0.0f); // Gateron Zealios
-        switches[36] = new KeySwitch("Gateron Aliaz", "Gateron", "Aliaz", Colors[0], "Silent", aliazRandom, 2.0f, 4.0f); // Gateron Aliaz
-        switches[37] = new KeySwitch("Kailh Box Pale Blue", "Kailh Box", "Pale Blue", Colors[20], "Clicky", 70.0f, 1.8f, 3.6f); // Kailh Box Pale Blue
-        switches[38] = new KeySwitch("Razer Yellow", "Razer", "Yellow", Colors[26], "Linear", 45.0f, 1.2f, 3.5f); // Razer Yellow
-    }
-
-    // Sets the rules not requiring switches
-    private void SetRules() {
-        // Resets rules
-        for (int i = 0; i < rules.Length; i++)
-            rules[i] = false;
-
-        if (Bomb.GetOnIndicators().Count() >= 2) { rules[0] = true; } // 1. The bomb has at least two lit indicators
-        if (Bomb.GetSerialNumberLetters().Any(x => x == 'A' || x == 'E' || x == 'I' || x == 'O' || x == 'U')) { rules[1] = true; } // 2. The bomb has a vowel in its serial number
-        if (Bomb.GetModuleNames().Count() % 2 == 0) { rules[3] = true; } // 4. The bomb has an even number of modules
-        if (DateTime.Now.DayOfWeek.ToString() == "Sunday") { rules[4] = true; } // 5. The bomb was initiated on a Sunday
-        if (Bomb.GetSerialNumberNumbers().Distinct().Count() >= 3) { rules[5] = true; } // 6. The bomb has at least three unique numbers in its serial number
-        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Simon")) >= 2) { rules[8] = true; } // 9. The bomb has at least two modules with 'Simon' in its name
-        if (Bomb.GetIndicators().Count() == 1) { rules[9] = true; } // 10.The bomb has exactly one indicator
-        if (Bomb.GetBatteryCount() % 2 == 0) { rules[10] = true; } // 11.The bomb has an even number of batteries
-        if (Bomb.GetPortCount(Port.DVI) % 2 == 1) { rules[11] = true; } // 12.The bomb has an odd amount of DVI - D ports
-        if (EmptyPortPlate() == true) { rules[12] = true; }// 13.The bomb has an empty port plate
-        if (Bomb.GetPortCount() == 0) { rules[14] = true; } // 15.There are no ports present on the bomb
-        if (Bomb.GetPortPlateCount() == 0) { rules[15] = true; } // 16.There are no port plates present on the bomb
-        if (!Bomb.GetSolvableModuleNames().Any(x => x.Contains("Simon"))) { rules[18] = true; } // 19.The bomb does not have a module with 'Simon' in its name
-        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Mechanical Switches")) == 1) // 20.The bomb has exactly one Mechanical Switches module
-        if (Bomb.GetBatteryCount() % 2 == 1) { rules[20] = true; } // 21.The bomb has an odd number of batteries
-        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Piano Keys")) >= 1) { rules[21] = true; } // 22.The bomb has at least one module with 'Piano Keys' in its name
-        if (Bomb.GetSolvableModuleNames().Contains("Turn The Key") || Bomb.GetSolvableModuleNames().Contains("Forget Me Not")) { rules[22] = true; } // 23.The bomb has at least one Turn The Key or Forget Me Not module
-        if (Bomb.GetPortPlateCount() == 3) { rules[23] = true; } // 24.The bomb has exactly three port plates
-        if (Bomb.GetIndicators().Count() % 2 == 1) { rules[29] = true; } // 30.The bomb has an odd number of indicators
-        if (Bomb.GetPortCount(Port.Parallel) % 2 == 1) { rules[30] = true; } // 31.The bomb has an odd number of parallel ports
-        if (Bomb.GetSerialNumberNumbers().Any(x => x == '0' || x == '2' || x == '4' || x == '6' || x == '8')) { rules[32] = true; } // 33.The bomb has an even number in its serial number
-        if (Bomb.GetBatteryCount() == 2) { rules[33] = true; } // 34.The bomb has exactly two batteries
-        if (Bomb.GetSerialNumberNumbers().Any(x => x == '0')) { rules[35] = true; } // 36.The bomb has a zero in its serial number
-        if (Bomb.GetBatteryCount() == 1) { rules[37] = true; } // 38.The bomb has exactly one battery
-        if (Bomb.GetPortCount() == 5) { rules[38] = true; } // 39.The bomb has exactly five ports
-        if (Bomb.GetIndicators().Count() == 3) { rules[39] = true; } // 40.The bomb has exactly three indicators
-        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Souvenir")) == 1) { rules[40] = true; } // 41.The bomb has exactly one Souvenir module
-    }
-
-    // Updates rules for switches
-    private void UpdateRules(KeySwitch key, int number) {
-        if (key.GetBrand() == "Kailh Pro") { rules[2] = true; } else { rules[2] = false; } // 3. This key is a Kailh Pro key
-        if (key.GetBrand() == "Cherry") { rules[6] = true; } else { rules[6] = false; } // 7. This key a Cherry key
-        if (key.GetColor() == "Red") { rules[7] = true; } else { rules[7] = false; } // 8. This key is red
-        if (key.GetColor() == "Blue" || key.GetColor() == "Pale Blue") { rules[13] = true; } else { rules[13] = false; } // 14.This key is blue
-        if (key.GetBrand() == "Kailh Box") { rules[16] = true; } else { rules[16] = false; } // 17.This key is a Kailh Box key
-        if (key.GetColor() == "Clear") { rules[17] = true; } else { rules[17] = false; } // 18.This key is clear
-        if (key.GetBrand() == "Gateron") { rules[24] = true; } else { rules[24] = false; } // 25.This key is a Gateron key
-        if (number == 3 || number == 4) { rules[25] = true; } else { rules[25] = false; } // 26.This key's number is 3 or 4
-        if (number == 2) { rules[26] = true; } else { rules[26] = false; } // 27.This key's number is 2
-        if (number == 3) { rules[27] = true; } else { rules[27] = false; } // 28.This key's number is 3
-        if (number == 2 || number == 5) { rules[28] = true; } else { rules[28] = false; } // 29.This key's number is 2 or 5
-        if (key.GetColor() == "Purple" || key.GetColor() == "Yellow") { rules[31] = true; } else { rules[31] = false; } // 32.This key is either purple or yellow
-        if (key.GetBrand() == "Razer") { rules[34] = true; } else { rules[34] = false; } // 35.This key is a Razer key
-        if (key.GetColor() == "Brown" || key.GetColor() == "Black") { rules[36] = true; } else { rules[36] = false; } // 37.This is key either brown or black
-    }
-
-    // If there is an empty port plate
-    private bool EmptyPortPlate() {
-        bool empty = false;
-
-        foreach (object[] plate in Bomb.GetPortPlates()) {
-            if (plate.Length == 0) {
-                empty = true;
-                break;
-            }
-        }
-
-        return empty;
+        switches[0] = new KeySwitch("Cherry Black", "Cherry", "Black", Colors[1], "Linear", 60.0f, 2.0f, 4.0f, 1); // Cherry Black
+        switches[1] = new KeySwitch("Cherry Speed Silver", "Cherry", "Speed Silver", Colors[23], "Linear", 45.0f, 1.2f, 3.4f, 1); // Cherry Speed Silver
+        switches[2] = new KeySwitch("Gateron Black", "Gateron", "Black", Colors[2], "Linear", 50.0f, 2.0f, 4.0f, 1); // Gateron Black
+        switches[3] = new KeySwitch("Kailh Box Black", "Kailh Box", "Black", Colors[2], "Linear", 60.0f, 1.8f, 3.6f, 1); // Kailh Box Black
+        switches[4] = new KeySwitch("Kailh Pro Burgundy", "Kailh Pro", "Burgundy", Colors[6], "Linear", 50.0f, 1.7f, 3.6f, 1); // Kailh Pro Burgundy
+        switches[5] = new KeySwitch("Cherry Red", "Cherry", "Red", Colors[22], "Linear", 45.0f, 2.0f, 4.0f, 2); // Cherry Red
+        switches[6] = new KeySwitch("Gateron Red", "Gateron", "Red", Colors[22], "Linear", 50.0f, 2.0f, 4.0f, 2); // Gateron Red
+        switches[7] = new KeySwitch("Kailh Box Red", "Kailh Box", "Red", Colors[22], "Linear", 45.0f, 1.8f, 3.6f, 2); // Kailh Box Red
+        switches[8] = new KeySwitch("Kailh Pro Purple", "Kailh Pro", "Purple", Colors[21], "Tactile", 50.0f, 1.7f, 3.6f, 2); // Kailh Pro Purple
+        switches[9] = new KeySwitch("Cherry Brown", "Cherry", "Brown", Colors[5], "Tactile", 45.0f, 2.0f, 4.0f, 3); // Cherry Brown
+        switches[10] = new KeySwitch("Gateron Brown", "Gateron", "Brown", Colors[5], "Tactile", 50.0f, 2.0f, 4.0f, 3); // Gateron Brown
+        switches[11] = new KeySwitch("Kailh Box Brown", "Kailh Box", "Brown", Colors[5], "Tactile", 60.0f, 1.8f, 3.6f, 3); // Kailh Box Brown
+        switches[12] = new KeySwitch("Kalih Pro Green", "Kailh Pro", "Green", Colors[14], "Clicky", 50.0f, 1.7f, 3.6f, 3); // Kailh Pro Green
+        switches[13] = new KeySwitch("Cherry Blue", "Cherry", "Blue", Colors[3], "Clicky", 50.0f, 2.2f, 4.0f, 4); // Cherry Blue
+        switches[14] = new KeySwitch("Gateron Blue", "Gateron", "Blue", Colors[3], "Clicky", 55.0f, 2.2f, 4.0f, 4); // Gateron Blue
+        switches[15] = new KeySwitch("Kailh Box White", "Kailh Box", "White", Colors[25], "Clicky", 55.0f, 1.8f, 3.6f, 4); // Kailh Box White
+        switches[16] = new KeySwitch("Kailh Speed Silver", "Kailh", "Speed Silver", Colors[23], "Linear", 50.0f, 1.1f, 3.5f, 4); // Kailh Speed Silver
+        switches[17] = new KeySwitch("Cherry Clear", "Cherry", "Clear", Colors[8], "Tactile", 65.0f, 2.0f, 4.0f, 5); // Cherry Clear
+        switches[18] = new KeySwitch("Gateron Clear", "Gateron", "Clear", Colors[9], "Linear", 35.0f, 2.0f, 4.0f, 5); // Gateron Clear
+        switches[19] = new KeySwitch("Kailh Box Navy", "Kailh Box", "Navy", Colors[18], "Clicky", 75.0f, 1.7f, 3.6f, 5); // Kailh Box Navy
+        switches[20] = new KeySwitch("Kailh Speed Copper", "Kailh", "Copper", Colors[10], "Tactile", 50.0f, 1.1f, 3.5f, 5); // Kailh Speed Copper
+        switches[21] = new KeySwitch("Cherry White", "Cherry", "White", Colors[25], "Clicky", 85.0f, 2.0f, 4.0f, 6); // Cherry White
+        switches[22] = new KeySwitch("Gateron Yellow", "Gateron", "Yellow", Colors[26], "Linear", 50.0f, 2.0f, 4.0f, 6); // Gateron Yellow
+        switches[23] = new KeySwitch("Kailh Box Jade", "Kailh Box", "Jade", Colors[17], "Clicky", 65.0f, 1.7f, 3.6f, 6); // Kailh Box Jade
+        switches[24] = new KeySwitch("Kailh Speed Bronze", "Kailh", "Bronze", Colors[4], "Clicky", 50.0f, 1.1f, 3.5f, 6); // Kailh Speed Bronze
+        switches[25] = new KeySwitch("Cherry Green", "Cherry", "Green", Colors[13], "Tactile", 80.0f, 2.2f, 4.0f, 7); // Cherry Green
+        switches[26] = new KeySwitch("Gateron Green", "Gateron", "Green", Colors[13], "Clicky", 80.0f, 2.0f, 4.0f, 7); // Gateron Green
+        switches[27] = new KeySwitch("Kailh Box Dark Yellow", "Kailh Box", "Dark Yellow", Colors[11], "Linear", 70.0f, 1.8f, 3.6f, 7); // Kailh Box Dark Yellow
+        switches[28] = new KeySwitch("Kailh Speed Gold", "Kailh", "Speed Gold", Colors[12], "Clicky", 50.0f, 1.4f, 3.5f, 7); // Kailh Speed Gold
+        switches[29] = new KeySwitch("Razer Green", "Razer", "Green", Colors[15], "Clicky", 50.0f, 1.9f, 4.0f, 7); // Razer Green
+        switches[30] = new KeySwitch("Cherry Grey (Linear)", "Cherry", "Grey", Colors[16], "Linear", 80.0f, 2.0f, 4.0f, 8); // Cherry Grey (Linear)
+        switches[31] = new KeySwitch("Gateron Tealios", "Gateron", "Tealios", Colors[24], "Linear", 67.0f, 2.0f, 4.0f, 8); // Gateron Tealios
+        switches[32] = new KeySwitch("Kailh Box Burnt Orange", "Kailh Box", "Burnt Orange", Colors[7], "Tactile", 70.0f, 1.8f, 3.6f, 8); // Kailh Box Burnt Orange
+        switches[33] = new KeySwitch("Razer Orange", "Razer", "Orange", Colors[19], "Silent", 45.0f, 1.9f, 4.0f, 8); // Razer Orange
+        switches[34] = new KeySwitch("Cherry Grey (Tactile)", "Cherry", "Grey", Colors[16], "Tactile", 80.0f, 2.0f, 4.0f, 9); // Cherry Grey (Tactile)
+        switches[35] = new KeySwitch("Gateron Zealios", "Gateron", "Zealios", Colors[27], "Tactile", (float) zealiosRandom, 2.0f, 4.0f, 9); // Gateron Zealios
+        switches[36] = new KeySwitch("Gateron Aliaz", "Gateron", "Aliaz", Colors[0], "Silent", (float) aliazRandom, 2.0f, 4.0f, 9); // Gateron Aliaz
+        switches[37] = new KeySwitch("Kailh Box Pale Blue", "Kailh Box", "Pale Blue", Colors[20], "Clicky", 70.0f, 1.8f, 3.6f, 9); // Kailh Box Pale Blue
+        switches[38] = new KeySwitch("Razer Yellow", "Razer", "Yellow", Colors[26], "Linear", 45.0f, 1.2f, 3.5f, 9); // Razer Yellow
     }
 
     
@@ -260,28 +227,331 @@ public class MechanicalSwitches : MonoBehaviour {
     private void KeyPressed(int i) {
         Keys[i].AddInteractionPunch(mechanicalKeys[i].GetKeySwitch().GetForce() / 100.0f);
         PlayKeySound(mechanicalKeys[i].GetKeySwitch().GetSound());
-        // Actuation - Travel Distance
-        // Turns on screen light
-        // Distinguishes tapping and holding
+        Lights[i].enabled = true;
+
+        keyHolding = i;
+        holdingTime = Time.time;
+
+        // Displays switch information on the screen
+        BigScreenText.text = "FOR " + mechanicalKeys[i].GetKeySwitch().GetForce().ToString() +
+            " CN\nACT " + mechanicalKeys[i].GetKeySwitch().GetActuation().ToString() +
+            " MM\nDIS " + mechanicalKeys[i].GetKeySwitch().GetTravelDistance().ToString() +
+            " MM";
+
+        // Keeps track of the number of key presses throughout the module
+        if (moduleSolved == false)
+            keyPresses++;
+
+        // If the key is not safe to press
+        if (mechanicalKeys[i].GetPressSafe() == false ||
+            (mechanicalKeys[i].GetPressTime() != -1 && Bomb.GetTime() % 10 != mechanicalKeys[i].GetPressTime())) {
+
+            willStrike = true;
+        }
+
+        // Applies conditions if present when holding keys
+        if (mechanicalKeys[i].GetCondition() > 0 && mechanicalKeys[i].GetCondition() < 4)
+            StartCoroutine(ApplyHoldConditions(keyPresses, i, mechanicalKeys[i].GetCondition()));
+
+        // Plays holding animation
     }
 
-    // Plays the key sound
+    // Key released
+    private void KeyReleased(int i) {
+        PlayReleaseSound(mechanicalKeys[i].GetKeySwitch().GetSound());
+        Lights[i].enabled = false;
+
+
+        // Key was tapped or module is solved
+        if ((Time.time - holdingTime < 0.5f && willStrike == false)
+            || moduleSolved == true) {
+            // Applies conditions if present when tapping keys
+            if (mechanicalKeys[i].GetCondition() > 3)
+                ApplyTapConditions(i, mechanicalKeys[i].GetCondition());
+        }
+
+        // Incorrect answer criteria
+        else if (mechanicalKeys[i].GetNumber() != holdOrder[keyInOrder] ||
+            (releaseTime != -1 && Bomb.GetTime() % 10 != releaseTime) || 
+            (mechanicalKeys[i].GetCondition() != 2 && Time.time - holdingTime < 5.0f) ||
+            (mechanicalKeys[i].GetCondition() == 2 && Time.time - holdingTime > faultyReleaseTime)) {
+
+            willStrike = true;
+        }
+
+        // Advances through the module
+        else {
+            Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} was held correctly.", moduleId, mechanicalKeys[i].GetNumber());
+            keyInOrder++;
+        }
+
+
+        holdingTime = -0.1f;
+        keyHolding = -1;
+        releaseTime = -1;
+        mechanicalKeys[i].SetPressTime(-1);
+
+        BigScreenText.text = "";
+
+        // Stops holding animation
+
+        // Strikes
+        if (willStrike == true) {
+            Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} was not held correctly.", moduleId, mechanicalKeys[i].GetNumber());
+            Strike();
+        }
+    }
+
+
+    // Keeps track of the time held
+    private void Update() {
+        if (holdingTime > 0.0f && Time.time - holdingTime >= 0.5f) {
+            // Turns on screen light for the key
+        }
+
+        if (keyInOrder > 4 && moduleSolved == false)
+            Solve();
+    }
+
+    // Plays the key sound on hold
     private void PlayKeySound(string sound) {
-        if (sound == "Clicky") { }
-            // Play clicky
+        if (sound == "Clicky")
+            Audio.PlaySoundAtTransform("MS_ClickyHold", transform);
 
-        else if (sound == "Linear") { }
-            // Play linear
+        else if (sound == "Linear")
+            Audio.PlaySoundAtTransform("MS_LinearHold", transform);
 
-        else if (sound == "Tactile") { }
-            // Play tactile
+        else if (sound == "Tactile")
+            Audio.PlaySoundAtTransform("MS_TactileHold", transform);
     }
-    
+
+    // Plays the key sound on release
+    private void PlayReleaseSound(string sound) {
+        if (sound == "Clicky")
+            Audio.PlaySoundAtTransform("MS_ClickyRelease", transform);
+
+        else if (sound == "Linear")
+            Audio.PlaySoundAtTransform("MS_LinearRelease", transform);
+
+        else if (sound == "Tactile")
+            Audio.PlaySoundAtTransform("MS_TactileRelease", transform);
+    }
+
+
+    // Applies conditions when holding
+    private IEnumerator ApplyHoldConditions(int presses, int i, int condition) {
+        yield return new WaitForSeconds(0.5f);
+
+        // If the same key is still in the same hold
+        if (keyHolding == i && presses == keyPresses) {
+            // Incorrect color
+            if (condition == 1) {
+                int selected = UnityEngine.Random.Range(0, WrongColors.Length - 1);
+
+                /* 0: Red
+                 * 1: Orange
+                 * 2: Yellow
+                 * 3: Green
+                 * 4: Blue
+                 * 5: Purple
+                 * 6: White
+                 */
+
+                // Avoids conflicts with the same color
+                if (selected == 0 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Red")
+                    condition = 0;
+
+                else if (selected == 1 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Orange")
+                    condition = 0;
+
+                else if (selected == 2 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Yellow")
+                    condition = 0;
+
+                else if (selected == 3 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Green")
+                    condition = 0;
+
+                else if (selected == 4 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Blue")
+                    condition = 0;
+
+                else if (selected == 5 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Purple")
+                    condition = 0;
+
+                else if (selected == 6 && mechanicalKeys[i].GetKeySwitch().GetColor() == "White")
+                    condition = 0;
+
+
+                if (condition == 1) {
+                    mechanicalKeys[i].SetMaterial(WrongColors[selected]);
+                    Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} is flashing an incorrect color.", moduleId, mechanicalKeys[i].GetNumber());
+
+                    // If the release time is affected
+                    if (mechanicalKeys[i].GetKeySwitch().GetColor() == "Red" ||
+                        mechanicalKeys[i].GetKeySwitch().GetColor() == "Orange" ||
+                        mechanicalKeys[i].GetKeySwitch().GetColor() == "Burnt Orange" ||
+                        mechanicalKeys[i].GetKeySwitch().GetColor() == "Yellow" ||
+                        mechanicalKeys[i].GetKeySwitch().GetColor() == "Dark Yellow" ||
+                        mechanicalKeys[i].GetKeySwitch().GetColor() == "Green") {
+
+                        int a = mechanicalKeys[i].GetKeySwitch().GetColumn();
+                        int b = 0;
+
+                        switch (selected) {
+                            case 0: b = 1; break; // Red
+                            case 1: b = 2; break; // Orange
+                            case 2: b = 3; break; // Yellow
+                            case 3: b = 4; break; // Green
+                            case 4: b = 5; break; // Blue
+                            case 5: b = 6; break; // Purple
+                            case 6: b = 10; break; // White
+                            default: b = 0; break;
+                        }
+
+                        if (a >= b)
+                            releaseTime = a - b;
+
+                        else
+                            releaseTime = b - a;
+
+
+                        Debug.LogFormat("[Mechanical Switches #{0}] Release key no. {1} when the last digit of the timer is a {2}.", moduleId, mechanicalKeys[i].GetNumber(), releaseTime);
+                    }
+                }
+
+                mechanicalKeys[i].SetCondition(0);
+            }
+
+            // Faulty Key
+            else if (condition == 2) {
+                // if (Twitch Plays is on)
+                //      faultyReleaseTime = 10.5f;
+
+                Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} is faulty. Release it immediately.", moduleId, mechanicalKeys[i].GetNumber());
+                StartCoroutine(FaultyKey(presses, i));
+            }
+
+            // No color flashing
+            else if (condition == 3) {
+                mechanicalKeys[i].SetMaterial(BlankColor);
+                Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} is not flashing a color", moduleId, mechanicalKeys[i].GetNumber());
+
+                if (mechanicalKeys[i].GetKeySwitch().GetColor() != "Clear") {
+                    releaseTime = mechanicalKeys[i].GetKeySwitch().GetColumn();
+                    Debug.LogFormat("[Mechanical Switches #{0}] Release key no. {1} when the last digit of the timer is a {2}.", moduleId, mechanicalKeys[i].GetNumber(), releaseTime);
+                }
+
+                mechanicalKeys[i].SetCondition(0);
+            }
+        }
+    }
+
+    // Faulty key
+    private IEnumerator FaultyKey(int presses, int i) {
+        yield return new WaitForSeconds(0.15f);
+
+        Lights[i].enabled = false;
+
+        yield return new WaitForSeconds(0.15f);
+
+        if (keyHolding == i && presses == keyPresses) {
+            Lights[i].enabled = true;
+            StartCoroutine(FaultyKey(presses, i));
+        }
+    }
+
+    // Applies conditions after tapping
+    private void ApplyTapConditions(int i, int condition) {
+        // Light always lit and correct color
+        if (condition == 4) {
+            Lights[i].enabled = true;
+            mechanicalKeys[i].SetPressSafe(false);
+            Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1}'s light is still on after tapping, and the color is the same. Do not interact with the key for at least a minute.", moduleId, mechanicalKeys[i].GetNumber());
+            mechanicalKeys[i].SetCondition(0);
+            StartCoroutine(WaitMinute(i));
+        }
+
+        // Light always lit and incorrect color
+        else if (condition == 5) {
+            // Incorrect color
+            int selected = UnityEngine.Random.Range(0, WrongColors.Length);
+
+            /* 0: Red
+             * 1: Orange
+             * 2: Yellow
+             * 3: Green
+             * 4: Blue
+             * 5: Purple
+             * 6: White
+             * 7: Black
+             */
+
+            // Avoids conflicts with the same color
+            if (selected == 0 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Red")
+                condition = 0;
+
+            else if (selected == 1 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Orange")
+                condition = 0;
+
+            else if (selected == 2 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Yellow")
+                condition = 0;
+
+            else if (selected == 3 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Green")
+                condition = 0;
+
+            else if (selected == 4 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Blue")
+                condition = 0;
+
+            else if (selected == 5 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Purple")
+                condition = 0;
+
+            else if (selected == 6 && mechanicalKeys[i].GetKeySwitch().GetColor() == "White")
+                condition = 0;
+
+            else if (selected == 7 && mechanicalKeys[i].GetKeySwitch().GetColor() == "Black")
+                condition = 0;
+
+
+            if (condition == 5) {
+                Lights[i].enabled = true;
+
+                int n = 0;
+
+                switch (selected) {
+                    case 0: n = 2; break; // Red
+                    case 1: n = 4; break; // Orange
+                    case 2: n = 7; break; // Yellow
+                    case 3: n = 2; break; // Green
+                    case 4: n = 0; break; // Blue
+                    case 5: n = 6; break; // Purple
+                    case 6: n = 0; break; // White
+                    case 7: n = 9; break; // Black
+                    default: n = 0; break;
+                }
+
+                mechanicalKeys[i].SetPressTime(n);
+                Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1}'s light is still on after tapping, and the color is the not the same. Only interact with the key when the last digit of the timer is a {2}.", moduleId, mechanicalKeys[i].GetNumber(), n);
+                mechanicalKeys[i].SetCondition(0);
+            }
+        }
+
+        // Contantly lit in Morse Code
+        else if (condition == 6) {
+            // Currently unimplemented
+            mechanicalKeys[i].SetCondition(0);
+        }
+    }
+
+    // Waits for a minute
+    private IEnumerator WaitMinute(int i) {
+        yield return new WaitForSeconds(60.0f);
+        mechanicalKeys[i].SetPressSafe(true);
+    }
+
 
     // Sets the keys
     private void SetKeys() {
         char[] keyboardText = { 'X', 'B', 'C', 'R', 'L' };
         int[] numbers = new int[5];
+        int[] conditions = new int[5];
 
         // Sets the switches
         for (int i = 0; i < numbers.Length; i++)
@@ -289,9 +559,12 @@ public class MechanicalSwitches : MonoBehaviour {
 
         keyOrder = AssignNumbers(numbers);
 
+        // Sets the conditions
+        conditions = SetConditions();
+
         // Assigns the data to each key and logs it
         for (int i = 0; i < mechanicalKeys.Length; i++) {
-            mechanicalKeys[i] = new MechanicalKey(Keys[i], switches[numbers[i]], Screens[i], keyOrder[i], keyboardText[i]);
+            mechanicalKeys[i] = new MechanicalKey(Keys[i], switches[numbers[i]], Screens[i], conditions[i], keyOrder[i], keyboardText[i]);
             Debug.LogFormat("[Mechanical Switches #{0}] Key {1} has a {2} switch, and is assigned no. {3}.", moduleId, keyboardText[i], switches[numbers[i]].GetName(), keyOrder[i]);
         }
     }
@@ -302,6 +575,7 @@ public class MechanicalSwitches : MonoBehaviour {
         int currentNumber = 1;
 
         for (int i = 0; i < switches.Length; i++) {
+
             for (int j = 0; j < numbers.Length; j++) {
                 if (numbers[j] == i) {
                     returningNumbers[j] = currentNumber;
@@ -314,6 +588,41 @@ public class MechanicalSwitches : MonoBehaviour {
         }
 
         return returningNumbers;
+    }
+
+    // Sets the conditions for the keys
+    private int[] SetConditions() {
+        int[] conditions = new int[5];
+        int randomNo;
+
+        /* 0: Normal
+         * 
+         * For when the key is held
+         * 1: Incorrect color
+         * 2: Rapidfire flash
+         * 3: No color
+         * 
+         * For after the key is tapped
+         * 4: Constant lit
+         * 5: Constant and wrong color
+         * 6: Constant lit in Morse Code
+         */
+
+        for (int i = 0; i < conditions.Length; i++) {
+            randomNo = UnityEngine.Random.Range(0, 30);
+
+            switch (randomNo) {
+                case 1: conditions[i] = 1; break;
+                case 2: conditions[i] = 2; break;
+                case 3: conditions[i] = 3; break;
+                case 4: conditions[i] = 4; break;
+                case 5: conditions[i] = 5; break;
+                case 6: conditions[i] = 6; break;
+                default: conditions[i] = 0; break;
+            }
+        }
+
+        return conditions;
     }
 
 
@@ -464,37 +773,113 @@ public class MechanicalSwitches : MonoBehaviour {
         }
     }
 
+    // Sets the rules not requiring switches
+    private void SetRules() {
+        // Resets rules
+        for (int i = 0; i < rules.Length; i++)
+            rules[i] = false;
+
+        if (Bomb.GetOnIndicators().Count() >= 2) { rules[0] = true; } // 1. The bomb has at least two lit indicators
+        if (Bomb.GetSerialNumberLetters().Any(x => x == 'A' || x == 'E' || x == 'I' || x == 'O' || x == 'U')) { rules[1] = true; } // 2. The bomb has a vowel in its serial number
+        if (Bomb.GetModuleNames().Count() % 2 == 0) { rules[3] = true; } // 4. The bomb has an even number of modules
+        if (DateTime.Now.DayOfWeek.ToString() == "Sunday") { rules[4] = true; } // 5. The bomb was initiated on a Sunday
+        if (Bomb.GetSerialNumberNumbers().Distinct().Count() >= 3) { rules[5] = true; } // 6. The bomb has at least three unique numbers in its serial number
+        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Simon")) >= 2) { rules[8] = true; } // 9. The bomb has at least two modules with 'Simon' in its name
+        if (Bomb.GetIndicators().Count() == 1) { rules[9] = true; } // 10.The bomb has exactly one indicator
+        if (Bomb.GetBatteryCount() % 2 == 0) { rules[10] = true; } // 11.The bomb has an even number of batteries
+        if (Bomb.GetPortCount(Port.DVI) % 2 == 1) { rules[11] = true; } // 12.The bomb has an odd amount of DVI - D ports
+        if (EmptyPortPlate() == true) { rules[12] = true; }// 13.The bomb has an empty port plate
+        if (Bomb.GetPortCount() == 0) { rules[14] = true; } // 15.There are no ports present on the bomb
+        if (Bomb.GetPortPlateCount() == 0) { rules[15] = true; } // 16.There are no port plates present on the bomb
+        if (!Bomb.GetSolvableModuleNames().Any(x => x.Contains("Simon"))) { rules[18] = true; } // 19.The bomb does not have a module with 'Simon' in its name
+        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Mechanical Switches")) == 1) // 20.The bomb has exactly one Mechanical Switches module
+            if (Bomb.GetBatteryCount() % 2 == 1) { rules[20] = true; } // 21.The bomb has an odd number of batteries
+        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Piano Keys")) >= 1) { rules[21] = true; } // 22.The bomb has at least one module with 'Piano Keys' in its name
+        if (Bomb.GetSolvableModuleNames().Contains("Turn The Key") || Bomb.GetSolvableModuleNames().Contains("Forget Me Not")) { rules[22] = true; } // 23.The bomb has at least one Turn The Key or Forget Me Not module
+        if (Bomb.GetPortPlateCount() == 3) { rules[23] = true; } // 24.The bomb has exactly three port plates
+        if (Bomb.GetIndicators().Count() % 2 == 1) { rules[29] = true; } // 30.The bomb has an odd number of indicators
+        if (Bomb.GetPortCount(Port.Parallel) % 2 == 1) { rules[30] = true; } // 31.The bomb has an odd number of parallel ports
+        if (Bomb.GetSerialNumberNumbers().Any(x => x == '0' || x == '2' || x == '4' || x == '6' || x == '8')) { rules[32] = true; } // 33.The bomb has an even number in its serial number
+        if (Bomb.GetBatteryCount() == 2) { rules[33] = true; } // 34.The bomb has exactly two batteries
+        if (Bomb.GetSerialNumberNumbers().Any(x => x == '0')) { rules[35] = true; } // 36.The bomb has a zero in its serial number
+        if (Bomb.GetBatteryCount() == 1) { rules[37] = true; } // 38.The bomb has exactly one battery
+        if (Bomb.GetPortCount() == 5) { rules[38] = true; } // 39.The bomb has exactly five ports
+        if (Bomb.GetIndicators().Count() == 3) { rules[39] = true; } // 40.The bomb has exactly three indicators
+        if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Souvenir")) == 1) { rules[40] = true; } // 41.The bomb has exactly one Souvenir module
+    }
+
+    // Updates rules for switches
+    private void UpdateRules(KeySwitch key, int number) {
+        if (key.GetBrand() == "Kailh Pro") { rules[2] = true; } else { rules[2] = false; } // 3. This key is a Kailh Pro key
+        if (key.GetBrand() == "Cherry") { rules[6] = true; } else { rules[6] = false; } // 7. This key a Cherry key
+        if (key.GetColor() == "Red") { rules[7] = true; } else { rules[7] = false; } // 8. This key is red
+        if (key.GetColor() == "Blue" || key.GetColor() == "Pale Blue") { rules[13] = true; } else { rules[13] = false; } // 14.This key is blue
+        if (key.GetBrand() == "Kailh Box") { rules[16] = true; } else { rules[16] = false; } // 17.This key is a Kailh Box key
+        if (key.GetColor() == "Clear") { rules[17] = true; } else { rules[17] = false; } // 18.This key is clear
+        if (key.GetBrand() == "Gateron") { rules[24] = true; } else { rules[24] = false; } // 25.This key is a Gateron key
+        if (number == 3 || number == 4) { rules[25] = true; } else { rules[25] = false; } // 26.This key's number is 3 or 4
+        if (number == 2) { rules[26] = true; } else { rules[26] = false; } // 27.This key's number is 2
+        if (number == 3) { rules[27] = true; } else { rules[27] = false; } // 28.This key's number is 3
+        if (number == 2 || number == 5) { rules[28] = true; } else { rules[28] = false; } // 29.This key's number is 2 or 5
+        if (key.GetColor() == "Purple" || key.GetColor() == "Yellow") { rules[31] = true; } else { rules[31] = false; } // 32.This key is either purple or yellow
+        if (key.GetBrand() == "Razer") { rules[34] = true; } else { rules[34] = false; } // 35.This key is a Razer key
+        if (key.GetColor() == "Brown" || key.GetColor() == "Black") { rules[36] = true; } else { rules[36] = false; } // 37.This is key either brown or black
+    }
+
+    // If there is an empty port plate
+    private bool EmptyPortPlate() {
+        bool empty = false;
+
+        foreach (object[] plate in Bomb.GetPortPlates()) {
+            if (plate.Length == 0) {
+                empty = true;
+                break;
+            }
+        }
+
+        return empty;
+    }
+
+
+
+    // Anything below here needs some fixing
+
+
 
     // Gets the key hold order
     private void GetHoldOrder() {
         InitiateGrid();
         SetStartPos();
         MoveKeys();
+        GetOrderSequence();
     }
 
     // Moves the keys on Table 3
     private void MoveKeys() {
         for (iterations = 1; iterations <= 10; iterations++) {
             int ruleNo = 0;
+            int loopCounter = 0;
             bool[] iterationRules = serialNumberConversions;
             bool lastRuleTrue = false;
             bool moved = false;
             int[] previousPos = new int[2];
             int[] newPos = new int[2];
 
-            for (int i = 0; i < mechanicalKeys.Length; i++) {
-                UpdateRules(mechanicalKeys[i].GetKeySwitch(), mechanicalKeys[i].GetNumber());
-                lastRuleTrue = false;
+            for (int i = 1; i <= mechanicalKeys.Length; i++) {
+                loopBreak = false;
+                
+                for (int j = 0; j < mechanicalKeys.Length && loopBreak == false; j++) {        
 
-                for (int j = 1; j <= mechanicalKeys.Length; j++) {
+                    if (mechanicalKeys[j].GetNumber() == i) {
+                        UpdateRules(mechanicalKeys[j].GetKeySwitch(), mechanicalKeys[j].GetNumber());
+                        lastRuleTrue = false;
 
-                    if (mechanicalKeys[i].GetNumber() == j) {
-
-                        for (int k = 1; k <= j; k++) {
+                        for (int k = 1; k <= i; k++) {
                             moved = false;
+                            loopCounter = 1;
 
                             while (moved == false) {
-                                previousPos = mechanicalKeys[i].GetGridPos();
+                                previousPos = mechanicalKeys[j].GetGridPos();
 
                                 /* Cannot go:
                                  * Up =     previousPos[0] - 1 < 0
@@ -505,13 +890,14 @@ public class MechanicalSwitches : MonoBehaviour {
                                  * URight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0
                                  */
 
-                                // If the key can't move at all
-                                if ((previousPos[0] + 1 > 8 ||
+                                // If the key can't move at all or if the grid has rotated four times for this movement
+                                if (((previousPos[0] + 1 > 8 ||
                                     ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
                                     && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)))
                                     && (previousPos[0] - 1 < 0 ||
                                     ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)))) {
+                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)))) ||
+                                    loopCounter > 4) {
 
                                     moved = true;
                                 }
@@ -523,6 +909,7 @@ public class MechanicalSwitches : MonoBehaviour {
                                     && lastRuleTrue == true) {
 
                                     RotateGridClock();
+                                    loopCounter++;
                                 }
 
                                 // If the key can't move down
@@ -531,6 +918,7 @@ public class MechanicalSwitches : MonoBehaviour {
                                     && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0))) {
 
                                     RotateGrid180();
+                                    loopCounter++;
                                 }
 
                                 // If the key can't move in the specified direction due to a nonexistant space
@@ -542,6 +930,8 @@ public class MechanicalSwitches : MonoBehaviour {
 
                                     else
                                         iterationRules[ruleNo] = false;
+
+                                    loopCounter++;
                                 }
 
                                 // If the key can't move in the specified direction due to an occupied space
@@ -549,6 +939,7 @@ public class MechanicalSwitches : MonoBehaviour {
                                     (iterationRules[ruleNo] == true && tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)) {
 
                                     RotateGridCounter();
+                                    loopCounter++;
                                 }
 
 
@@ -567,7 +958,7 @@ public class MechanicalSwitches : MonoBehaviour {
                                     }
 
 
-                                    tableGridPos[newPos[0]][newPos[1]] = j;
+                                    tableGridPos[newPos[0]][newPos[1]] = i;
                                     tableGridPos[previousPos[0]][previousPos[1]] = 0;
                                     moved = true;
 
@@ -577,7 +968,7 @@ public class MechanicalSwitches : MonoBehaviour {
                                     if (rules[tableGrid[newPos[0]][newPos[1]] - 1] == true) {
                                         lastRuleTrue = true;
 
-                                        if (k == j)
+                                        if (k == i)
                                             RotateGridCounter();
 
                                         else
@@ -591,6 +982,8 @@ public class MechanicalSwitches : MonoBehaviour {
 
                             ruleNo++;
                         }
+
+                        loopBreak = true;
                     }
                 }
             }
@@ -612,18 +1005,20 @@ public class MechanicalSwitches : MonoBehaviour {
     // Sets the positions of the keys on the grid
     private void SetStartPos() {
         for (int i = 0; i < mechanicalKeys.Length; i++) {
+            loopBreak = false;
 
-            for (int j = 1; j <= mechanicalKeys.Length; j++) {
+            for (int j = 1; j <= mechanicalKeys.Length && loopBreak == false; j++) {
 
                 if (mechanicalKeys[i].GetNumber() == j) {
 
-                    for (int k = 0; k < keyOrder.Length; k++) {
+                    for (int k = 0; k < keyOrder.Length && loopBreak == false; k++) {
 
                         if (keyOrder[k] == j) {
 
                             tableGridPos[0][k * 2] = j;
                             int[] newGridPos = { 0, k * 2 };
                             mechanicalKeys[i].SetGridPos(newGridPos);
+                            loopBreak = true;
                         }
                     }
                 }
@@ -675,7 +1070,7 @@ public class MechanicalSwitches : MonoBehaviour {
             "Key {9} is in {10}{11}, " +
             "Key {12} is in {13}{14}, and " +
             "Key {15} is in {16}{17}. " +
-            "Current rotation of Table 3: North is {}.",
+            "Current rotation of Table 3: North is {18}.",
             moduleId, iterations, iterationPlural,
             mechanicalKeys[0].GetNumber(), mechanicalKeys[0].GetGridPosLogger0(), mechanicalKeys[0].GetGridPosLogger1(),
             mechanicalKeys[1].GetNumber(), mechanicalKeys[1].GetGridPosLogger0(), mechanicalKeys[1].GetGridPosLogger1(),
@@ -698,19 +1093,21 @@ public class MechanicalSwitches : MonoBehaviour {
     // Updates keys' positions on the grid
     private void UpdateGridPos() {
         for (int i = 0; i < mechanicalKeys.Length; i++) {
+            loopBreak = false;
 
-            for (int j = 1; j <= mechanicalKeys.Length; j++) {
+            for (int j = 1; j <= mechanicalKeys.Length && loopBreak == false; j++) {
 
                 if (mechanicalKeys[i].GetNumber() == j) {
 
-                    for (int k = 0; k < 9; k++) {
+                    for (int k = 0; k < 9 && loopBreak == false; k++) {
 
-                        for (int l = 0; l < 9; l++) {
+                        for (int l = 0; l < 9 && loopBreak == false; l++) {
 
                             if (tableGridPos[k][l] == j) {
 
                                 int[] receivedGridNumbers = { k, l };
                                 mechanicalKeys[i].SetGridPos(receivedGridNumbers);
+                                loopBreak = true;
                             }
                         }
                     }

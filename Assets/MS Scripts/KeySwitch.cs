@@ -11,13 +11,16 @@ public class KeySwitch {
     private string brand;
     private string color;
     private Material material;
+
     private string sound;
     private float force;
     private float actuation;
     private float travelDistance;
 
+    private int column;
+
     // Default setup
-    public KeySwitch(string name, string brand, string color, Material material, string sound, float force, float actuation, float travelDistance) {
+    public KeySwitch(string name, string brand, string color, Material material, string sound, float force, float actuation, float travelDistance, int column) {
         this.name = name;
         this.brand = brand;
         this.color = color;
@@ -26,6 +29,7 @@ public class KeySwitch {
         this.force = force;
         this.actuation = actuation;
         this.travelDistance = travelDistance;
+        this.column = column;
     }
 
     
@@ -62,6 +66,10 @@ public class KeySwitch {
         this.travelDistance = travelDistance;
     }
 
+    public void SetColumn(int column) {
+        this.column = column;
+    }
+
 
     // Gets info
     public string GetName() {
@@ -94,5 +102,9 @@ public class KeySwitch {
 
     public float GetTravelDistance() {
         return travelDistance;
+    }
+
+    public int GetColumn() {
+        return column;
     }
 }
