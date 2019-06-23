@@ -14,7 +14,17 @@ public class MechanicalKey {
     private int condition;
     private bool pressSafe = true;
     private int pressTime = -1;
+    private bool doublePressTime = false;
+    private bool needRapidTapping = false;
     private char text;
+
+    private int rotation = 0;
+    private string rotationLogger = "North";
+    /* North = 0
+     * East = 1
+     * South = 2
+     * West = 3
+     */
 
     private int[] gridPos = { 0, 0 };
     private string[] gridPosLogger = new string[2];
@@ -30,8 +40,14 @@ public class MechanicalKey {
 
         pressSafe = true;
         pressTime = -1;
+        doublePressTime = false;
+        needRapidTapping = false;
 
         this.screen.material = this.keySwitch.GetMaterial();
+
+        if (this.keySwitch.GetClear() == true) {
+            // Set a clear material to the key
+        }
     }
 
 
@@ -64,8 +80,21 @@ public class MechanicalKey {
         this.pressTime = pressTime;
     }
 
+    public void SetDoublePressTime(bool doublePressTime) {
+        this.doublePressTime = doublePressTime;
+    }
+
+    public void SetNeedRapidTapping(bool needRapidTapping) {
+        this.needRapidTapping = needRapidTapping;
+    }
+
     public void SetText(char text) {
         this.text = text;
+    }
+
+    public void SetRotation(int rotation) {
+        this.rotation = rotation;
+        rotationLogger = SetGridPosLogger(this.rotation);
     }
 
     public void SetGridPos(int[] gridPos) {
@@ -73,6 +102,17 @@ public class MechanicalKey {
 
         gridPosLogger[0] = SetGridPosLogger(this.gridPos[1]);
         gridPosLogger[1] = (this.gridPos[0] + 1).ToString();
+    }
+
+    // Sets the rotation for logging
+    public string SetRotationLogger(int rotation) {
+        switch (rotation) {
+            case 0: return "North";
+            case 1: return "East";
+            case 2: return "South";
+            case 3: return "West";
+            default: return "North";
+        }
     }
 
     // Sets the grid position for logging
@@ -124,8 +164,24 @@ public class MechanicalKey {
         return pressTime;
     }
 
+    public bool GetDoublePressTime() {
+        return doublePressTime;
+    }
+
+    public bool GetNeedRapidTapping() {
+        return needRapidTapping;
+    }
+
     public char GetText() {
         return text;
+    }
+
+    public int GetRotation() {
+        return rotation;
+    }
+
+    public string GetRotationLogger() {
+        return rotationLogger;
     }
 
     public int[] GetGridPos() {

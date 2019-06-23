@@ -25,7 +25,7 @@
 					
 					<p>This module contains five computer keyboard keys with switches that may produce different sounds.</p>
 					
-					<p>To solve the module, hold the keys in the order of their switches.</p>
+					<p>To solve the module, hold the keys in the correct order.</p>
 					
 					<p>If the wrong key is held, you will see its correct color, but you will receive a strike when releasing it.
 					The module will then reset and the switches will change.</p>
@@ -344,24 +344,23 @@
 					
 					<ol>
 						<li>If a key cannot move downwards or upwards in either horizontal direction, or if this is the fifth time following this list of rules for this movement, the key does not move. The rule on the space it's on is ignored.</li>
-						<li>If a key cannot move downwards in either horizontal direction and the last space it landed on for the current iteration was true, rotate <em>Table 3</em> 90° clockwise.</li> 
-						<li>If a key cannot move downwards in either horizontal direction, rotate <em>Table 3</em> 180°.</li>
+						<li>If a key cannot move downwards in either horizontal direction and the last space it landed on for the current iteration was true, rotate the key 90° clockwise.</li> 
+						<li>If a key cannot move downwards in either horizontal direction, rotate the key 180°.</li>
 						<li>If a key cannot move in the specified direction because a space in that direction doesn't exist, the specified direction for the movement in this iteration is actually downwards in the opposite horizontal direction.</li>
-						<li>If a key cannot move in the specified direction because the space in that direction is occupied by another key, rotate <em>Table 3</em> 90° counter-clockwise.</li>
+						<li>If a key cannot move in the specified direction because the space in that direction is occupied by another key, rotate the key 90° counter-clockwise.</li>
 					</ol>
 					
 					<p>Repeat following the rules above until the key moves (unless if rule 1 applied).
-					<em>Table 3</em> will keep its rotation for the rest of the module.
+					Each key will keep its rotation for the rest of the module.
 					When the key lands on a space, check its corresponding rule in the <em>List of Rules</em>.
 					If the rule is true, follow the applicable rule below:</p>
 					
 					<ul>
-						<li>If this movement was the last movement for the key in the current iteration, rotate <em>Table 3</em> 90° counter-clockwise.</li>
-						<li>Otherwise, rotate <em>Table 3</em> 90° clockwise.</li>
+						<li>If this movement was the last movement for the key in the current iteration, rotate the key 90° counter-clockwise.</li>
+						<li>Otherwise, rotate the key 90° clockwise.</li>
 					</ul>
 					
-					<p>Once the keys are in the ending positions, press and hold the keys on the module in the order in which they first appear in reading order on <em>Table 3</em> in it's original rotation.
-					However, if the bomb has any unlit indicators with a letter in common with a key's color, the keys that don't have priority over those that do.
+					<p>Once the keys are in the ending positions, press and hold the keys on the module in the order in which they first appear in reading order on <em>Table 3</em>.
 					Each key must be held for at least 5 seconds, unless if told otherwise.</p>
 					
 					<p><strong>Note:</strong> In this manual, when a rule refers to a color, the switch must have that color in its name.</p>
@@ -594,7 +593,7 @@
 						You can only interact with the key when the last digit of the bomb's timer is the calculated value.</li>
 					</ul>
 					
-					<p>However, if this value is equal to the last digit of the bomb's serial number, you can only interact with the key when the <i>second-to-last</i> digit of the bomb's timer is the calculated number modulo 6.</li>
+					<p>However, if this value is equal to the last digit of the bomb's serial number, you can also only interact with the key when the <i>second-to-last</i> digit of the bomb's timer is the calculated number modulo 6.</li>
 					
                 </div>
                 <div class="page-footer relative-footer">Page 6 of 9</div>

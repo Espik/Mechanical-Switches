@@ -8,13 +8,17 @@ using KModkit;
 /* Things left to implement:
  * 
  * Find and fix a bug in the release time
- * Having the key possibly display a Morse Code letter
+ * Ability to display a Morse Code letter on a key's lights
+ * Test if a Morse Code letter is found in any of the bombs lit indicators
+ * Test if a key has been tapped three times in the last two seconds
+ * Make a clear material
  * Make clear keys have a clear material
  * Animate the key pressing
- * Redo the manual's PDF
  * Add a colorblind mode
- * Fix MoveKeys() being completely broken
- * Write code that tests for if any unlit indicators match a letter in a switch's color name
+ * Extend the faulty key release time if Twitch Plays is active
+ * Change the lights on the keys to light LEDs on the screens
+ * Fix an issue where the timer doesn't start and the first iteration is not logged
+ * Implement TP code
  */
 
 // Repo module desc: "Select each button and figure out which keys make which sounds. Using these sounds, figure out when to hold each button down and when you should release them. Watch out for faulty keys!"
@@ -52,6 +56,13 @@ public class MechanicalSwitches : MonoBehaviour {
     private float holdingTime = -0.1f;
     private bool willStrike = false;
 
+    // Morse letters
+    private char[] letters = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z' };
+    private int[] letterDigRoot = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+    private string[] letterValues = { "10111000", "111010101000" , "11101011101000", "1110101000", "1000", "101011101000", "111011101000", "1010101000", "101000", "1011101110111000", "111010111000", "111010111000", "1110111000",
+                                       "11101000", "11101110111000", "10111011101000", "1110111010111000", "1011101000", "10101000", "111000", "1010111000", "101010111000", "101110111000", "11101010111000", "1110101110111000", "11101110101000"};
+
+
     // Table grid info
     private int[] holdOrder = new int[5];
     private int[][] tableGrid = new int[9][];
@@ -60,15 +71,6 @@ public class MechanicalSwitches : MonoBehaviour {
     private bool[] serialNumberConversions = new bool[15];
     private bool[] rules = new bool[41];
     private int iterations = 0;
-    private bool[] indicatorMatch = new bool[5];
-
-    private int gridRotation = 0;
-    /* 0 = North
-     * 1 = East
-     * 2 = South
-     * 3 = West
-     */ 
-
 
     // Ran as bomb loads
     private void Awake() {
@@ -130,8 +132,8 @@ public class MechanicalSwitches : MonoBehaviour {
         iterations = 0;
         SetKeys();
         keyOrder = GetOrderRule();
-        //GetHoldOrder(); - Currently unused - need to fix
-        holdOrder = keyOrder; // Placeholder
+        GetHoldOrder();
+        //holdOrder = keyOrder; // Placeholder when GetHoldOrder() is turned off
         keyInOrder = 0;
         TurnOffLights();
     }
@@ -181,45 +183,45 @@ public class MechanicalSwitches : MonoBehaviour {
         int zealiosRandom = UnityEngine.Random.Range(62, 78);
         int aliazRandom = UnityEngine.Random.Range(60, 100);
 
-        switches[0] = new KeySwitch("Cherry Black", "Cherry", "Black", Colors[1], "Linear", 60.0f, 2.0f, 4.0f, 1); // Cherry Black
-        switches[1] = new KeySwitch("Cherry Speed Silver", "Cherry", "Speed Silver", Colors[23], "Linear", 45.0f, 1.2f, 3.4f, 1); // Cherry Speed Silver
-        switches[2] = new KeySwitch("Gateron Black", "Gateron", "Black", Colors[2], "Linear", 50.0f, 2.0f, 4.0f, 1); // Gateron Black
-        switches[3] = new KeySwitch("Kailh Box Black", "Kailh Box", "Black", Colors[2], "Linear", 60.0f, 1.8f, 3.6f, 1); // Kailh Box Black
-        switches[4] = new KeySwitch("Kailh Pro Burgundy", "Kailh Pro", "Burgundy", Colors[6], "Linear", 50.0f, 1.7f, 3.6f, 1); // Kailh Pro Burgundy
-        switches[5] = new KeySwitch("Cherry Red", "Cherry", "Red", Colors[22], "Linear", 45.0f, 2.0f, 4.0f, 2); // Cherry Red
-        switches[6] = new KeySwitch("Gateron Red", "Gateron", "Red", Colors[22], "Linear", 50.0f, 2.0f, 4.0f, 2); // Gateron Red
-        switches[7] = new KeySwitch("Kailh Box Red", "Kailh Box", "Red", Colors[22], "Linear", 45.0f, 1.8f, 3.6f, 2); // Kailh Box Red
-        switches[8] = new KeySwitch("Kailh Pro Purple", "Kailh Pro", "Purple", Colors[21], "Tactile", 50.0f, 1.7f, 3.6f, 2); // Kailh Pro Purple
-        switches[9] = new KeySwitch("Cherry Brown", "Cherry", "Brown", Colors[5], "Tactile", 45.0f, 2.0f, 4.0f, 3); // Cherry Brown
-        switches[10] = new KeySwitch("Gateron Brown", "Gateron", "Brown", Colors[5], "Tactile", 50.0f, 2.0f, 4.0f, 3); // Gateron Brown
-        switches[11] = new KeySwitch("Kailh Box Brown", "Kailh Box", "Brown", Colors[5], "Tactile", 60.0f, 1.8f, 3.6f, 3); // Kailh Box Brown
-        switches[12] = new KeySwitch("Kalih Pro Green", "Kailh Pro", "Green", Colors[14], "Clicky", 50.0f, 1.7f, 3.6f, 3); // Kailh Pro Green
-        switches[13] = new KeySwitch("Cherry Blue", "Cherry", "Blue", Colors[3], "Clicky", 50.0f, 2.2f, 4.0f, 4); // Cherry Blue
-        switches[14] = new KeySwitch("Gateron Blue", "Gateron", "Blue", Colors[3], "Clicky", 55.0f, 2.2f, 4.0f, 4); // Gateron Blue
-        switches[15] = new KeySwitch("Kailh Box White", "Kailh Box", "White", Colors[25], "Clicky", 55.0f, 1.8f, 3.6f, 4); // Kailh Box White
-        switches[16] = new KeySwitch("Kailh Speed Silver", "Kailh", "Speed Silver", Colors[23], "Linear", 50.0f, 1.1f, 3.5f, 4); // Kailh Speed Silver
-        switches[17] = new KeySwitch("Cherry Clear", "Cherry", "Clear", Colors[8], "Tactile", 65.0f, 2.0f, 4.0f, 5); // Cherry Clear
-        switches[18] = new KeySwitch("Gateron Clear", "Gateron", "Clear", Colors[9], "Linear", 35.0f, 2.0f, 4.0f, 5); // Gateron Clear
-        switches[19] = new KeySwitch("Kailh Box Navy", "Kailh Box", "Navy", Colors[18], "Clicky", 75.0f, 1.7f, 3.6f, 5); // Kailh Box Navy
-        switches[20] = new KeySwitch("Kailh Speed Copper", "Kailh", "Copper", Colors[10], "Tactile", 50.0f, 1.1f, 3.5f, 5); // Kailh Speed Copper
-        switches[21] = new KeySwitch("Cherry White", "Cherry", "White", Colors[25], "Clicky", 85.0f, 2.0f, 4.0f, 6); // Cherry White
-        switches[22] = new KeySwitch("Gateron Yellow", "Gateron", "Yellow", Colors[26], "Linear", 50.0f, 2.0f, 4.0f, 6); // Gateron Yellow
-        switches[23] = new KeySwitch("Kailh Box Jade", "Kailh Box", "Jade", Colors[17], "Clicky", 65.0f, 1.7f, 3.6f, 6); // Kailh Box Jade
-        switches[24] = new KeySwitch("Kailh Speed Bronze", "Kailh", "Bronze", Colors[4], "Clicky", 50.0f, 1.1f, 3.5f, 6); // Kailh Speed Bronze
-        switches[25] = new KeySwitch("Cherry Green", "Cherry", "Green", Colors[13], "Tactile", 80.0f, 2.2f, 4.0f, 7); // Cherry Green
-        switches[26] = new KeySwitch("Gateron Green", "Gateron", "Green", Colors[13], "Clicky", 80.0f, 2.0f, 4.0f, 7); // Gateron Green
-        switches[27] = new KeySwitch("Kailh Box Dark Yellow", "Kailh Box", "Dark Yellow", Colors[11], "Linear", 70.0f, 1.8f, 3.6f, 7); // Kailh Box Dark Yellow
-        switches[28] = new KeySwitch("Kailh Speed Gold", "Kailh", "Speed Gold", Colors[12], "Clicky", 50.0f, 1.4f, 3.5f, 7); // Kailh Speed Gold
-        switches[29] = new KeySwitch("Razer Green", "Razer", "Green", Colors[15], "Clicky", 50.0f, 1.9f, 4.0f, 7); // Razer Green
-        switches[30] = new KeySwitch("Cherry Grey (Linear)", "Cherry", "Grey", Colors[16], "Linear", 80.0f, 2.0f, 4.0f, 8); // Cherry Grey (Linear)
-        switches[31] = new KeySwitch("Gateron Tealios", "Gateron", "Tealios", Colors[24], "Linear", 67.0f, 2.0f, 4.0f, 8); // Gateron Tealios
-        switches[32] = new KeySwitch("Kailh Box Burnt Orange", "Kailh Box", "Burnt Orange", Colors[7], "Tactile", 70.0f, 1.8f, 3.6f, 8); // Kailh Box Burnt Orange
-        switches[33] = new KeySwitch("Razer Orange", "Razer", "Orange", Colors[19], "Silent", 45.0f, 1.9f, 4.0f, 8); // Razer Orange
-        switches[34] = new KeySwitch("Cherry Grey (Tactile)", "Cherry", "Grey", Colors[16], "Tactile", 80.0f, 2.0f, 4.0f, 9); // Cherry Grey (Tactile)
-        switches[35] = new KeySwitch("Gateron Zealios", "Gateron", "Zealios", Colors[27], "Tactile", (float) zealiosRandom, 2.0f, 4.0f, 9); // Gateron Zealios
-        switches[36] = new KeySwitch("Gateron Aliaz", "Gateron", "Aliaz", Colors[0], "Silent", (float) aliazRandom, 2.0f, 4.0f, 9); // Gateron Aliaz
-        switches[37] = new KeySwitch("Kailh Box Pale Blue", "Kailh Box", "Pale Blue", Colors[20], "Clicky", 70.0f, 1.8f, 3.6f, 9); // Kailh Box Pale Blue
-        switches[38] = new KeySwitch("Razer Yellow", "Razer", "Yellow", Colors[26], "Linear", 45.0f, 1.2f, 3.5f, 9); // Razer Yellow
+        switches[0] = new KeySwitch("Cherry Black", "Cherry", "Black", Colors[1], false, "Linear", 60.0f, 2.0f, 4.0f, 1); // Cherry Black
+        switches[1] = new KeySwitch("Cherry Speed Silver", "Cherry", "Speed Silver", Colors[23], false, "Linear", 45.0f, 1.2f, 3.4f, 1); // Cherry Speed Silver
+        switches[2] = new KeySwitch("Gateron Black", "Gateron", "Black", Colors[2], false, "Linear", 50.0f, 2.0f, 4.0f, 1); // Gateron Black
+        switches[3] = new KeySwitch("Kailh Box Black", "Kailh Box", "Black", Colors[2], false, "Linear", 60.0f, 1.8f, 3.6f, 1); // Kailh Box Black
+        switches[4] = new KeySwitch("Kailh Pro Burgundy", "Kailh Pro", "Burgundy", Colors[6], false, "Linear", 50.0f, 1.7f, 3.6f, 1); // Kailh Pro Burgundy
+        switches[5] = new KeySwitch("Cherry Red", "Cherry", "Red", Colors[22], false, "Linear", 45.0f, 2.0f, 4.0f, 2); // Cherry Red
+        switches[6] = new KeySwitch("Gateron Red", "Gateron", "Red", Colors[22], false, "Linear", 50.0f, 2.0f, 4.0f, 2); // Gateron Red
+        switches[7] = new KeySwitch("Kailh Box Red", "Kailh Box", "Red", Colors[22], false, "Linear", 45.0f, 1.8f, 3.6f, 2); // Kailh Box Red
+        switches[8] = new KeySwitch("Kailh Pro Purple", "Kailh Pro", "Purple", Colors[21], false, "Tactile", 50.0f, 1.7f, 3.6f, 2); // Kailh Pro Purple
+        switches[9] = new KeySwitch("Cherry Brown", "Cherry", "Brown", Colors[5], false, "Tactile", 45.0f, 2.0f, 4.0f, 3); // Cherry Brown
+        switches[10] = new KeySwitch("Gateron Brown", "Gateron", "Brown", Colors[5], false, "Tactile", 50.0f, 2.0f, 4.0f, 3); // Gateron Brown
+        switches[11] = new KeySwitch("Kailh Box Brown", "Kailh Box", "Brown", Colors[5], false, "Tactile", 60.0f, 1.8f, 3.6f, 3); // Kailh Box Brown
+        switches[12] = new KeySwitch("Kalih Pro Green", "Kailh Pro", "Green", Colors[14], false, "Clicky", 50.0f, 1.7f, 3.6f, 3); // Kailh Pro Green
+        switches[13] = new KeySwitch("Cherry Blue", "Cherry", "Blue", Colors[3], false, "Clicky", 50.0f, 2.2f, 4.0f, 4); // Cherry Blue
+        switches[14] = new KeySwitch("Gateron Blue", "Gateron", "Blue", Colors[3], false, "Clicky", 55.0f, 2.2f, 4.0f, 4); // Gateron Blue
+        switches[15] = new KeySwitch("Kailh Box White", "Kailh Box", "White", Colors[25], false, "Clicky", 55.0f, 1.8f, 3.6f, 4); // Kailh Box White
+        switches[16] = new KeySwitch("Kailh Speed Silver", "Kailh", "Speed Silver", Colors[23], false, "Linear", 50.0f, 1.1f, 3.5f, 4); // Kailh Speed Silver
+        switches[17] = new KeySwitch("Cherry Clear", "Cherry", "Clear", Colors[8], true, "Tactile", 65.0f, 2.0f, 4.0f, 5); // Cherry Clear
+        switches[18] = new KeySwitch("Gateron Clear", "Gateron", "Clear", Colors[9], true, "Linear", 35.0f, 2.0f, 4.0f, 5); // Gateron Clear
+        switches[19] = new KeySwitch("Kailh Box Navy", "Kailh Box", "Navy", Colors[18], false, "Clicky", 75.0f, 1.7f, 3.6f, 5); // Kailh Box Navy
+        switches[20] = new KeySwitch("Kailh Speed Copper", "Kailh", "Copper", Colors[10], false, "Tactile", 50.0f, 1.1f, 3.5f, 5); // Kailh Speed Copper
+        switches[21] = new KeySwitch("Cherry White", "Cherry", "White", Colors[25], false, "Clicky", 85.0f, 2.0f, 4.0f, 6); // Cherry White
+        switches[22] = new KeySwitch("Gateron Yellow", "Gateron", "Yellow", Colors[26], false, "Linear", 50.0f, 2.0f, 4.0f, 6); // Gateron Yellow
+        switches[23] = new KeySwitch("Kailh Box Jade", "Kailh Box", "Jade", Colors[17], false, "Clicky", 65.0f, 1.7f, 3.6f, 6); // Kailh Box Jade
+        switches[24] = new KeySwitch("Kailh Speed Bronze", "Kailh", "Bronze", Colors[4], false, "Clicky", 50.0f, 1.1f, 3.5f, 6); // Kailh Speed Bronze
+        switches[25] = new KeySwitch("Cherry Green", "Cherry", "Green", Colors[13], false, "Tactile", 80.0f, 2.2f, 4.0f, 7); // Cherry Green
+        switches[26] = new KeySwitch("Gateron Green", "Gateron", "Green", Colors[13], false, "Clicky", 80.0f, 2.0f, 4.0f, 7); // Gateron Green
+        switches[27] = new KeySwitch("Kailh Box Dark Yellow", "Kailh Box", "Dark Yellow", Colors[11], false, "Linear", 70.0f, 1.8f, 3.6f, 7); // Kailh Box Dark Yellow
+        switches[28] = new KeySwitch("Kailh Speed Gold", "Kailh", "Speed Gold", Colors[12], false, "Clicky", 50.0f, 1.4f, 3.5f, 7); // Kailh Speed Gold
+        switches[29] = new KeySwitch("Razer Green", "Razer", "Green", Colors[15], false, "Clicky", 50.0f, 1.9f, 4.0f, 7); // Razer Green
+        switches[30] = new KeySwitch("Cherry Grey (Linear)", "Cherry", "Grey", Colors[16], false, "Linear", 80.0f, 2.0f, 4.0f, 8); // Cherry Grey (Linear)
+        switches[31] = new KeySwitch("Gateron Tealios", "Gateron", "Tealios", Colors[24], false, "Linear", 67.0f, 2.0f, 4.0f, 8); // Gateron Tealios
+        switches[32] = new KeySwitch("Kailh Box Burnt Orange", "Kailh Box", "Burnt Orange", Colors[7], false, "Tactile", 70.0f, 1.8f, 3.6f, 8); // Kailh Box Burnt Orange
+        switches[33] = new KeySwitch("Razer Orange", "Razer", "Orange", Colors[19], false, "Silent", 45.0f, 1.9f, 4.0f, 8); // Razer Orange
+        switches[34] = new KeySwitch("Cherry Grey (Tactile)", "Cherry", "Grey", Colors[16], false, "Tactile", 80.0f, 2.0f, 4.0f, 9); // Cherry Grey (Tactile)
+        switches[35] = new KeySwitch("Gateron Zealios", "Gateron", "Zealios", Colors[27], false, "Tactile", (float) zealiosRandom, 2.0f, 4.0f, 9); // Gateron Zealios
+        switches[36] = new KeySwitch("Gateron Aliaz", "Gateron", "Aliaz", Colors[0], false, "Silent", (float) aliazRandom, 2.0f, 4.0f, 9); // Gateron Aliaz
+        switches[37] = new KeySwitch("Kailh Box Pale Blue", "Kailh Box", "Pale Blue", Colors[20], false, "Clicky", 70.0f, 1.8f, 3.6f, 9); // Kailh Box Pale Blue
+        switches[38] = new KeySwitch("Razer Yellow", "Razer", "Yellow", Colors[26], false, "Linear", 45.0f, 1.2f, 3.5f, 9); // Razer Yellow
     }
 
     
@@ -244,7 +246,8 @@ public class MechanicalSwitches : MonoBehaviour {
 
         // If the key is not safe to press
         if (mechanicalKeys[i].GetPressSafe() == false ||
-            (mechanicalKeys[i].GetPressTime() != -1 && Bomb.GetTime() % 10 != mechanicalKeys[i].GetPressTime())) {
+            (mechanicalKeys[i].GetPressTime() != -1 && Bomb.GetTime() % 10 != mechanicalKeys[i].GetPressTime() && mechanicalKeys[i].GetDoublePressTime() == false) ||
+            mechanicalKeys[i].GetPressTime() != -1 && Bomb.GetTime() % 10 != mechanicalKeys[i].GetPressTime() && mechanicalKeys[i].GetDoublePressTime() == true && (int) Math.Round(Bomb.GetTime() % 60 / 10) == mechanicalKeys[i].GetPressTime() % 6) {
 
             willStrike = true;
         }
@@ -252,6 +255,12 @@ public class MechanicalSwitches : MonoBehaviour {
         // Applies conditions if present when holding keys
         if (mechanicalKeys[i].GetCondition() > 0 && mechanicalKeys[i].GetCondition() < 4)
             StartCoroutine(ApplyHoldConditions(keyPresses, i, mechanicalKeys[i].GetCondition()));
+
+        // Adds one to the rapid tapping
+        if (mechanicalKeys[i].GetNeedRapidTapping() == true) {
+            // 
+            mechanicalKeys[i].SetNeedRapidTapping(false); // Placeholder
+        }
 
         // Plays holding animation
     }
@@ -268,13 +277,18 @@ public class MechanicalSwitches : MonoBehaviour {
             // Applies conditions if present when tapping keys
             if (mechanicalKeys[i].GetCondition() > 3)
                 ApplyTapConditions(i, mechanicalKeys[i].GetCondition());
+
+            // If the key still needs to be rapidly tapped
+            if (mechanicalKeys[i].GetNeedRapidTapping() == true)
+                Lights[i].enabled = true;
         }
 
         // Incorrect answer criteria
         else if (mechanicalKeys[i].GetNumber() != holdOrder[keyInOrder] ||
             (releaseTime != -1 && Bomb.GetTime() % 10 != releaseTime) || 
             (mechanicalKeys[i].GetCondition() != 2 && Time.time - holdingTime < 5.0f) ||
-            (mechanicalKeys[i].GetCondition() == 2 && Time.time - holdingTime > faultyReleaseTime)) {
+            (mechanicalKeys[i].GetCondition() == 2 && Time.time - holdingTime > faultyReleaseTime) ||
+            mechanicalKeys[i].GetNeedRapidTapping() == true) {
 
             willStrike = true;
         }
@@ -286,30 +300,25 @@ public class MechanicalSwitches : MonoBehaviour {
         }
 
 
+        // Reset info
         holdingTime = -0.1f;
         keyHolding = -1;
         releaseTime = -1;
         mechanicalKeys[i].SetPressTime(-1);
+        mechanicalKeys[i].SetDoublePressTime(false);
+        mechanicalKeys[i].SetNeedRapidTapping(false);
 
         BigScreenText.text = "";
 
-        // Stops holding animation
+        // Plays releasing animation
 
-        // Strikes
+        // Striking
         if (willStrike == true) {
             Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} was not held correctly.", moduleId, mechanicalKeys[i].GetNumber());
             Strike();
         }
-    }
 
-
-    // Keeps track of the time held
-    private void Update() {
-        if (holdingTime > 0.0f && Time.time - holdingTime >= 0.5f) {
-            // Turns on screen light for the key
-        }
-
-        if (keyInOrder > 4 && moduleSolved == false)
+        if (keyInOrder > 4)
             Solve();
     }
 
@@ -422,8 +431,10 @@ public class MechanicalSwitches : MonoBehaviour {
 
             // Faulty Key
             else if (condition == 2) {
-                // if (Twitch Plays is on)
+                // if (Twitch Plays is on) {
                 //      faultyReleaseTime = 10.5f;
+                //      Display a message to Twitch chat "The key being held is faulty. It must be released in 10 seconds."
+                // }
 
                 Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1} is faulty. Release it immediately.", moduleId, mechanicalKeys[i].GetNumber());
                 StartCoroutine(FaultyKey(presses, i));
@@ -535,8 +546,36 @@ public class MechanicalSwitches : MonoBehaviour {
 
         // Contantly lit in Morse Code
         else if (condition == 6) {
-            // Currently unimplemented
+            int randomNo = UnityEngine.Random.Range(0, 25);
+            char assignedLetter = letters[randomNo];
+
+            // Seperate section and rule of the selected letter that looks at if the letter is in any lit indiators
+            // if (above is true)
+            //      condition = 7;
+
+            // If the letter is found in a lit indicator
+            if (condition == 7) {
+                Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1}'s light is flashing {2} in Morse Code, and {2} is found in at least one of the bomb's lit indiators. Tap the key three times in two seconds before holding it.", moduleId, mechanicalKeys[i].GetNumber(), assignedLetter);
+                mechanicalKeys[i].SetNeedRapidTapping(true);
+            }
+
+            // If the letter is not found in a lit indicator
+            else {
+                int tapTime = letterDigRoot[randomNo];
+
+                mechanicalKeys[i].SetPressTime(tapTime);
+
+                if (tapTime == Bomb.GetSerialNumberNumbers().Last()) {
+                    Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1}'s light is flashing {2} in Morse Code, and {2} is not found in any one of the bomb's lit indiators. The digital root of the number assigned to {2} is equal to the last digit of the serial number. Only interact with the key when the last two digits of the timer are {3}{2}.", moduleId, mechanicalKeys[i].GetNumber(), assignedLetter, tapTime, tapTime % 6);
+                    mechanicalKeys[i].SetDoublePressTime(true);
+                }
+
+                else
+                    Debug.LogFormat("[Mechanical Switches #{0}] Key no. {1}'s light is flashing {2} in Morse Code, and {2} is not found in any one of the bomb's lit indiators. The digital root of the number assigned to {2} is not equal to the last digit of the serial number. Only interact with the key when the last digit of the timer is a {2}.", moduleId, mechanicalKeys[i].GetNumber(), assignedLetter, tapTime);
+            }
+
             mechanicalKeys[i].SetCondition(0);
+            // StartCorutine(DisplayMorseCode(i, letterValues[randomNo]));
         }
     }
 
@@ -544,6 +583,21 @@ public class MechanicalSwitches : MonoBehaviour {
     private IEnumerator WaitMinute(int i) {
         yield return new WaitForSeconds(60.0f);
         mechanicalKeys[i].SetPressSafe(true);
+    }
+
+    // Rapidtapping
+    private IEnumerator RapidTap(int i) {
+        yield return null;
+        // checks if the same key has been tapped three times within two seconds without being held
+    }
+
+    // Has the light flickering in Morse Code
+    private IEnumerator DisplayMorseCode(int i, string letter) {
+        yield return new WaitForSeconds(0.35f);
+
+        // Lights[i].enabled = false;
+        // flicker the lights in morse code with 0 = off, 1 = on for binary digits in the letters that loops through the length
+        // repeat corutine until key is held
     }
 
 
@@ -793,7 +847,7 @@ public class MechanicalSwitches : MonoBehaviour {
         if (Bomb.GetPortPlateCount() == 0) { rules[15] = true; } // 16.There are no port plates present on the bomb
         if (!Bomb.GetSolvableModuleNames().Any(x => x.Contains("Simon"))) { rules[18] = true; } // 19.The bomb does not have a module with 'Simon' in its name
         if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Mechanical Switches")) == 1) // 20.The bomb has exactly one Mechanical Switches module
-            if (Bomb.GetBatteryCount() % 2 == 1) { rules[20] = true; } // 21.The bomb has an odd number of batteries
+        if (Bomb.GetBatteryCount() % 2 == 1) { rules[20] = true; } // 21.The bomb has an odd number of batteries
         if (Bomb.GetSolvableModuleNames().Count(x => x.Contains("Piano Keys")) >= 1) { rules[21] = true; } // 22.The bomb has at least one module with 'Piano Keys' in its name
         if (Bomb.GetSolvableModuleNames().Contains("Turn The Key") || Bomb.GetSolvableModuleNames().Contains("Forget Me Not")) { rules[22] = true; } // 23.The bomb has at least one Turn The Key or Forget Me Not module
         if (Bomb.GetPortPlateCount() == 3) { rules[23] = true; } // 24.The bomb has exactly three port plates
@@ -841,11 +895,6 @@ public class MechanicalSwitches : MonoBehaviour {
     }
 
 
-
-    // Anything below here needs some fixing
-
-
-
     // Gets the key hold order
     private void GetHoldOrder() {
         InitiateGrid();
@@ -859,11 +908,12 @@ public class MechanicalSwitches : MonoBehaviour {
         for (iterations = 1; iterations <= 10; iterations++) {
             int ruleNo = 0;
             int loopCounter = 0;
-            bool[] iterationRules = serialNumberConversions;
             bool lastRuleTrue = false;
             bool moved = false;
+            int[] directions = { 2, 2, 2, 2 };
             int[] previousPos = new int[2];
             int[] newPos = new int[2];
+            ConvertSerialNumber();
 
             for (int i = 1; i <= mechanicalKeys.Length; i++) {
                 loopBreak = false;
@@ -881,64 +931,53 @@ public class MechanicalSwitches : MonoBehaviour {
                             while (moved == false) {
                                 previousPos = mechanicalKeys[j].GetGridPos();
 
-                                /* Cannot go:
-                                 * Up =     previousPos[0] - 1 < 0
-                                 * Down =   previousPos[0] + 1 > 8
-                                 * DLeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0
-                                 * DRight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0
-                                 * ULeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0
-                                 * URight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0
+                                directions = ChecksOpenPos(j, previousPos);
+                                /* 0: DL
+                                 * 1: DR
+                                 * 2: UL
+                                 * 3: UR
                                  */
 
                                 // If the key can't move at all or if the grid has rotated four times for this movement
-                                if (((previousPos[0] + 1 > 8 ||
-                                    ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)))
-                                    && (previousPos[0] - 1 < 0 ||
-                                    ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)))) ||
+                                if ((directions[0] < 2 && directions[1] < 2 && directions[2] < 2 && directions[3] < 2) ||
                                     loopCounter > 4) {
 
                                     moved = true;
                                 }
 
                                 // If the key can't move down and the last rule was true
-                                else if ((previousPos[0] + 1 > 8 ||
-                                    ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)))
+                                else if (directions[0] < 2 && directions[1] < 2
                                     && lastRuleTrue == true) {
 
-                                    RotateGridClock();
+                                    mechanicalKeys[j].SetRotation(mechanicalKeys[j].GetRotation() + 1 % 4); // Rotate clock
                                     loopCounter++;
                                 }
 
                                 // If the key can't move down
-                                else if (previousPos[0] + 1 > 8 ||
-                                    ((previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                                    && (previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0))) {
+                                else if (directions[0] < 2 && directions[1] < 2) {
 
-                                    RotateGrid180();
+                                    mechanicalKeys[j].SetRotation(mechanicalKeys[j].GetRotation() + 2 % 4); // Rotate 180
                                     loopCounter++;
                                 }
 
                                 // If the key can't move in the specified direction due to a nonexistant space
-                                else if ((iterationRules[ruleNo] == false && previousPos[1] - 1 < 0) ||
-                                    (iterationRules[ruleNo] == true && previousPos[1] + 1 > 8)) {
+                                else if ((serialNumberConversions[ruleNo] == false && directions[0] == 0) ||
+                                    (serialNumberConversions[ruleNo] == true && directions[1] == 0)) {
 
-                                    if (iterationRules[ruleNo] == false)
-                                        iterationRules[ruleNo] = true;
+                                    if (serialNumberConversions[ruleNo] == false)
+                                        serialNumberConversions[ruleNo] = true;
 
                                     else
-                                        iterationRules[ruleNo] = false;
+                                        serialNumberConversions[ruleNo] = false;
 
                                     loopCounter++;
                                 }
 
                                 // If the key can't move in the specified direction due to an occupied space
-                                else if ((iterationRules[ruleNo] == false && tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0) ||
-                                    (iterationRules[ruleNo] == true && tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)) {
+                                else if ((serialNumberConversions[ruleNo] == false && directions[0] == 1) ||
+                                    (serialNumberConversions[ruleNo] == true && directions[1] == 1)) {
 
-                                    RotateGridCounter();
+                                    mechanicalKeys[j].SetRotation(mechanicalKeys[j].GetRotation() + 3 % 4); // Rotate counter
                                     loopCounter++;
                                 }
 
@@ -946,33 +985,29 @@ public class MechanicalSwitches : MonoBehaviour {
                                 // Key moves
                                 else {
                                     // Down-right
-                                    if (iterationRules[ruleNo] == true) {
-                                        newPos[0] = previousPos[0] + 1;
-                                        newPos[1] = previousPos[1] + 1;
-                                    }
+                                    if (serialNumberConversions[ruleNo] == true)
+                                        MoveKeyDownRight(j, mechanicalKeys[j].GetRotation(), previousPos);
 
                                     // Down-left
-                                    else {
-                                        newPos[0] = previousPos[0] + 1;
-                                        newPos[1] = previousPos[1] - 1;
-                                    }
+                                    else
+                                        MoveKeyDownLeft(j, mechanicalKeys[j].GetRotation(), previousPos);
 
 
                                     tableGridPos[newPos[0]][newPos[1]] = i;
                                     tableGridPos[previousPos[0]][previousPos[1]] = 0;
                                     moved = true;
 
-                                    UpdateGridPos();
+                                    UpdateGridPos(j);
 
                                     // Checks rule for the space
                                     if (rules[tableGrid[newPos[0]][newPos[1]] - 1] == true) {
                                         lastRuleTrue = true;
 
                                         if (k == i)
-                                            RotateGridCounter();
+                                            mechanicalKeys[j].SetRotation(mechanicalKeys[j].GetRotation() + 3 % 4); // Rotate counter
 
                                         else
-                                            RotateGridClock();
+                                            mechanicalKeys[j].SetRotation(mechanicalKeys[j].GetRotation() + 1 % 4); // Rotate clock
                                     }
 
                                     else
@@ -990,17 +1025,8 @@ public class MechanicalSwitches : MonoBehaviour {
 
             LogKeyPositions();
         }
-
-        // Sets grid to original rotation
-        if (gridRotation == 1)
-            RotateGridCounter();
-
-        else if (gridRotation == 2)
-            RotateGrid180();
-
-        else if (gridRotation == 3)
-            RotateGridClock();
     }
+
 
     // Sets the positions of the keys on the grid
     private void SetStartPos() {
@@ -1028,31 +1054,49 @@ public class MechanicalSwitches : MonoBehaviour {
         LogKeyPositions();
     }
 
+    // Updates the key's position on the grid
+    private void UpdateGridPos(int i) {
+        loopBreak = false;
+
+        for (int k = 0; k < 9 && loopBreak == false; k++) {
+
+            for (int l = 0; l < 9 && loopBreak == false; l++) {
+
+                if (tableGridPos[k][l] == mechanicalKeys[i].GetNumber()) {
+
+                    int[] receivedGridNumbers = { k, l };
+                    mechanicalKeys[i].SetGridPos(receivedGridNumbers);
+                    loopBreak = true;
+                }
+            }
+        }
+    }
+
     // Gets the positions of each key in reading order
     private void GetOrderSequence() {
         int keysFound = 0;
+        loopBreak = false;
 
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 9 && loopBreak == false; i++) {
 
-            for (int j = 0; j < 9; j++) {
+            for (int j = 0; j < 9 && loopBreak == false; j++) {
 
                 if (tableGridPos[i][j] != 0) {
                     holdOrder[keysFound] = tableGridPos[i][j];
                     keysFound++;
+
+                    if (keysFound > 4)
+                        loopBreak = true;
                 }
             }
         }
 
-        // Insert code that test if any unlit indicators match the switches' colors.
-
         Debug.LogFormat("[Mechanical Switches #{0}] The hold order selected is {1}, {2}, {3}, {4}, {5}", moduleId, holdOrder[0], holdOrder[1], holdOrder[2], holdOrder[3], holdOrder[4]);
     }
-
 
     // Logs the key's positions
     private void LogKeyPositions() {
         string iterationPlural = "";
-        string rotationDirection = "";
 
         // Writes plural or singular form of 'iteration'
         if (iterations == 1)
@@ -1061,66 +1105,23 @@ public class MechanicalSwitches : MonoBehaviour {
         else
             iterationPlural = "iterations";
 
-        // Changes the grid rotation into a cardinal direction
-        rotationDirection = GetRotationCardinal();
-
         Debug.LogFormat("[Mechanical Switches #{0}] After {1} {2}, " +
-            "Key {3} is in {4}{5}, " +
-            "Key {6} is in {7}{8}, " +
-            "Key {9} is in {10}{11}, " +
-            "Key {12} is in {13}{14}, and " +
-            "Key {15} is in {16}{17}. " +
-            "Current rotation of Table 3: North is {18}.",
+            "Key {3} is in {4}{5} and rotated {6}, " +
+            "Key {7} is in {8}{9}, and rotated {10}, " +
+            "Key {11} is in {12}{13} and rotated {14}, " +
+            "Key {15} is in {16}{17} and rotated {18}, and " +
+            "Key {19} is in {20}{21} and rotated {22}.",
             moduleId, iterations, iterationPlural,
-            mechanicalKeys[0].GetNumber(), mechanicalKeys[0].GetGridPosLogger0(), mechanicalKeys[0].GetGridPosLogger1(),
-            mechanicalKeys[1].GetNumber(), mechanicalKeys[1].GetGridPosLogger0(), mechanicalKeys[1].GetGridPosLogger1(),
-            mechanicalKeys[2].GetNumber(), mechanicalKeys[2].GetGridPosLogger0(), mechanicalKeys[2].GetGridPosLogger1(),
-            mechanicalKeys[3].GetNumber(), mechanicalKeys[3].GetGridPosLogger0(), mechanicalKeys[3].GetGridPosLogger1(),
-            mechanicalKeys[4].GetNumber(), mechanicalKeys[4].GetGridPosLogger0(), mechanicalKeys[4].GetGridPosLogger1(),
-            rotationDirection);
+            mechanicalKeys[0].GetNumber(), mechanicalKeys[0].GetGridPosLogger0(), mechanicalKeys[0].GetGridPosLogger1(), mechanicalKeys[0].GetRotationLogger(),
+            mechanicalKeys[1].GetNumber(), mechanicalKeys[1].GetGridPosLogger0(), mechanicalKeys[1].GetGridPosLogger1(), mechanicalKeys[1].GetRotationLogger(),
+            mechanicalKeys[2].GetNumber(), mechanicalKeys[2].GetGridPosLogger0(), mechanicalKeys[2].GetGridPosLogger1(), mechanicalKeys[2].GetRotationLogger(),
+            mechanicalKeys[3].GetNumber(), mechanicalKeys[3].GetGridPosLogger0(), mechanicalKeys[3].GetGridPosLogger1(), mechanicalKeys[3].GetRotationLogger(),
+            mechanicalKeys[4].GetNumber(), mechanicalKeys[4].GetGridPosLogger0(), mechanicalKeys[4].GetGridPosLogger1(), mechanicalKeys[4].GetRotationLogger());
     }
 
-    private string GetRotationCardinal() {
-        switch (gridRotation) {
-            case 0: return "North";
-            case 1: return "East";
-            case 2: return "South";
-            case 3: return "West";
-            default: return "North";
-        }
-    }
-
-    // Updates keys' positions on the grid
-    private void UpdateGridPos() {
-        for (int i = 0; i < mechanicalKeys.Length; i++) {
-            loopBreak = false;
-
-            for (int j = 1; j <= mechanicalKeys.Length && loopBreak == false; j++) {
-
-                if (mechanicalKeys[i].GetNumber() == j) {
-
-                    for (int k = 0; k < 9 && loopBreak == false; k++) {
-
-                        for (int l = 0; l < 9 && loopBreak == false; l++) {
-
-                            if (tableGridPos[k][l] == j) {
-
-                                int[] receivedGridNumbers = { k, l };
-                                mechanicalKeys[i].SetGridPos(receivedGridNumbers);
-                                loopBreak = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
+    
     // Creates the grid
     private void InitiateGrid() {
-        gridRotation = 0;
-
         for (int i = 0; i < 9; i++) {
             tableGrid[i] = new int[9];
             tableGridPos[i] = new int[9];
@@ -1182,303 +1183,277 @@ public class MechanicalSwitches : MonoBehaviour {
         tableGrid[8][8] = 23;
     }
 
-    // Rotates the grid clockwise 90 degrees
-    private void RotateGridClock() {
-        gridRotation = (gridRotation + 1) % 4;
+    // Tests positions
+    public int[] ChecksOpenPos(int i, int[] previousPos) {
+        int[] directions = { 2, 2, 2, 2 };
+        /* 0 = DL UL UR DR
+         * 1 = DR DL UL UR
+         * 2 = UL UR DR DL
+         * 3 = UR DR DL UL
+         */
+        
+        /* Cannot go (for rotation 0):
+         * DLeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0
+         * DRight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0
+         * ULeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0
+         * URight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0
+         */
 
-        int[][] tempGrid = tableGrid;
-        int[][] tempGridPos = tableGridPos;
+        switch (mechanicalKeys[i].GetRotation()) {
+            // North
+            case 0:
+                // Down left
+                if (previousPos[1] - 1 < 0)
+                    directions[0] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
+                    directions[0] = 1;
 
-        // Rule positions
-        tableGrid[0][8] = tempGrid[0][0];
-        tableGrid[2][8] = tempGrid[0][2];
-        tableGrid[4][8] = tempGrid[0][4];
-        tableGrid[6][8] = tempGrid[0][6];
-        tableGrid[8][8] = tempGrid[0][8];
-        tableGrid[8][6] = tempGrid[2][8];
-        tableGrid[8][4] = tempGrid[4][8];
-        tableGrid[8][2] = tempGrid[6][8];
-        tableGrid[8][0] = tempGrid[8][8];
-        tableGrid[6][0] = tempGrid[8][6];
-        tableGrid[4][0] = tempGrid[8][4];
-        tableGrid[2][0] = tempGrid[8][2];
-        tableGrid[0][0] = tempGrid[8][0];
-        tableGrid[0][2] = tempGrid[6][0];
-        tableGrid[0][4] = tempGrid[4][0];
-        tableGrid[0][6] = tempGrid[2][0];
+                // Down right
+                if (previousPos[0] + 1 > 8)
+                    directions[1] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
+                    directions[1] = 1;
 
-        tableGrid[1][7] = tempGrid[1][1];
-        tableGrid[3][7] = tempGrid[1][3];
-        tableGrid[5][7] = tempGrid[1][5];
-        tableGrid[7][7] = tempGrid[1][7];
-        tableGrid[7][5] = tempGrid[3][7];
-        tableGrid[7][3] = tempGrid[5][7];
-        tableGrid[7][1] = tempGrid[7][7];
-        tableGrid[5][1] = tempGrid[7][5];
-        tableGrid[3][1] = tempGrid[7][3];
-        tableGrid[1][1] = tempGrid[7][1];
-        tableGrid[1][3] = tempGrid[5][1];
-        tableGrid[1][5] = tempGrid[3][1];
+                // Up left
+                if (previousPos[0] - 1 < 0)
+                    directions[2] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
+                    directions[2] = 1;
 
-        tableGrid[2][6] = tempGrid[2][2];
-        tableGrid[4][6] = tempGrid[2][4];
-        tableGrid[6][6] = tempGrid[2][6];
-        tableGrid[6][4] = tempGrid[4][6];
-        tableGrid[6][2] = tempGrid[6][6];
-        tableGrid[4][2] = tempGrid[6][4];
-        tableGrid[2][2] = tempGrid[6][2];
-        tableGrid[2][4] = tempGrid[4][2];
+                // Up right
+                if (previousPos[1] + 1 > 8)
+                    directions[3] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
+                    directions[3] = 1;
+                break;
 
-        tableGrid[3][5] = tempGrid[3][3];
-        tableGrid[5][5] = tempGrid[3][5];
-        tableGrid[5][3] = tempGrid[5][5];
-        tableGrid[3][3] = tempGrid[5][3];
+            // East
+            case 1:
+                // Down left
+                if (previousPos[0] - 1 < 0)
+                    directions[0] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
+                    directions[0] = 1;
 
-        // Key positions
-        tableGridPos[0][8] = tempGridPos[0][0];
-        tableGridPos[2][8] = tempGridPos[0][2];
-        tableGridPos[4][8] = tempGridPos[0][4];
-        tableGridPos[6][8] = tempGridPos[0][6];
-        tableGridPos[8][8] = tempGridPos[0][8];
-        tableGridPos[8][6] = tempGridPos[2][8];
-        tableGridPos[8][4] = tempGridPos[4][8];
-        tableGridPos[8][2] = tempGridPos[6][8];
-        tableGridPos[8][0] = tempGridPos[8][8];
-        tableGridPos[6][0] = tempGridPos[8][6];
-        tableGridPos[4][0] = tempGridPos[8][4];
-        tableGridPos[2][0] = tempGridPos[8][2];
-        tableGridPos[0][0] = tempGridPos[8][0];
-        tableGridPos[0][2] = tempGridPos[6][0];
-        tableGridPos[0][4] = tempGridPos[4][0];
-        tableGridPos[0][6] = tempGridPos[2][0];
+                // Down right
+                if (previousPos[1] - 1 < 0)
+                    directions[1] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
+                    directions[1] = 1;
 
-        tableGridPos[1][7] = tempGridPos[1][1];
-        tableGridPos[3][7] = tempGridPos[1][3];
-        tableGridPos[5][7] = tempGridPos[1][5];
-        tableGridPos[7][7] = tempGridPos[1][7];
-        tableGridPos[7][5] = tempGridPos[3][7];
-        tableGridPos[7][3] = tempGridPos[5][7];
-        tableGridPos[7][1] = tempGridPos[7][7];
-        tableGridPos[5][1] = tempGridPos[7][5];
-        tableGridPos[3][1] = tempGridPos[7][3];
-        tableGridPos[1][1] = tempGridPos[7][1];
-        tableGridPos[1][3] = tempGridPos[5][1];
-        tableGridPos[1][5] = tempGridPos[3][1];
+                // Up left
+                if (previousPos[1] + 1 > 8)
+                    directions[2] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
+                    directions[2] = 1;
 
-        tableGridPos[2][6] = tempGridPos[2][2];
-        tableGridPos[4][6] = tempGridPos[2][4];
-        tableGridPos[6][6] = tempGridPos[2][6];
-        tableGridPos[6][4] = tempGridPos[4][6];
-        tableGridPos[6][2] = tempGridPos[6][6];
-        tableGridPos[4][2] = tempGridPos[6][4];
-        tableGridPos[2][2] = tempGridPos[6][2];
-        tableGridPos[2][4] = tempGridPos[4][2];
+                // Up right
+                if (previousPos[0] + 1 > 8)
+                    directions[3] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
+                    directions[3] = 1;
+                break;
 
-        tableGridPos[3][5] = tempGridPos[3][3];
-        tableGridPos[5][5] = tempGridPos[3][5];
-        tableGridPos[5][3] = tempGridPos[5][5];
-        tableGridPos[3][3] = tempGridPos[5][3];
+            // South
+            case 2:
+                // Down left
+                if (previousPos[1] + 1 > 8)
+                    directions[0] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
+                    directions[0] = 1;
 
-        UpdateGridPos();
+                // Down right
+                if (previousPos[0] - 1 < 0)
+                    directions[1] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
+                    directions[1] = 1;
+
+                // Up left
+                if (previousPos[0] + 1 > 8)
+                    directions[2] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
+                    directions[2] = 1;
+
+                // Up right
+                if (previousPos[1] - 1 < 0)
+                    directions[3] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
+                    directions[3] = 1;
+                break;
+
+            // West
+            case 3:
+                // Down left
+                if (previousPos[0] + 1 > 8)
+                    directions[0] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
+                    directions[0] = 1;
+
+                // Down right
+                if (previousPos[1] + 1 > 8)
+                    directions[1] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
+                    directions[1] = 1;
+
+                // Up left
+                if (previousPos[1] - 1 < 0)
+                    directions[2] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
+                    directions[2] = 1;
+
+                // Up right
+                if (previousPos[0] - 1 < 0)
+                    directions[3] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
+                    directions[3] = 1;
+                break;
+
+            default:
+                // Down left
+                if (previousPos[1] - 1 < 0)
+                    directions[0] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
+                    directions[0] = 1;
+
+                // Down right
+                if (previousPos[0] + 1 > 8)
+                    directions[1] = 0;
+                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
+                    directions[1] = 1;
+
+                // Up left
+                if (previousPos[0] - 1 < 0)
+                    directions[2] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
+                    directions[2] = 1;
+
+                // Up right
+                if (previousPos[1] + 1 > 8)
+                    directions[3] = 0;
+                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
+                    directions[3] = 1;
+                break;
+        }
+
+        return directions;
     }
 
-    // Rotates the grid counter-clockwise 90 degrees
-    private void RotateGridCounter() {
-        gridRotation = (gridRotation + 3) % 4;
+    // Moves the keys
+    public int[] MoveKeyDownLeft(int i, int rotation, int[] previousPos) {
+        int[] newPos = { 0, 0 };
 
-        int[][] tempGrid = tableGrid;
-        int[][] tempGridPos = tableGridPos;
+        /* For rotation north
+         * 
+         * newPos[0] = previousPos[0] + 1;
+         * newPos[1] = previousPos[1] - 1;
+         */
+        
+        switch (rotation) {
+            case 0: // North
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] - 1;
+                break;
 
-        // Rule positions
-        tableGrid[0][0] = tempGrid[0][8];
-        tableGrid[0][2] = tempGrid[2][8];
-        tableGrid[0][4] = tempGrid[4][8];
-        tableGrid[0][6] = tempGrid[6][8];
-        tableGrid[0][8] = tempGrid[8][8];
-        tableGrid[2][8] = tempGrid[8][6];
-        tableGrid[4][8] = tempGrid[8][4];
-        tableGrid[6][8] = tempGrid[8][2];
-        tableGrid[8][8] = tempGrid[8][0];
-        tableGrid[8][6] = tempGrid[6][0];
-        tableGrid[8][4] = tempGrid[4][0];
-        tableGrid[8][2] = tempGrid[2][0];
-        tableGrid[8][0] = tempGrid[0][0];
-        tableGrid[6][0] = tempGrid[0][2];
-        tableGrid[4][0] = tempGrid[0][4];
-        tableGrid[2][0] = tempGrid[0][6];
+            case 1: // East
+                newPos[0] = previousPos[0] - 1;
+                newPos[1] = previousPos[1] - 1;
+                break;
 
-        tableGrid[1][1] = tempGrid[1][7];
-        tableGrid[1][3] = tempGrid[3][7];
-        tableGrid[1][5] = tempGrid[5][7];
-        tableGrid[1][7] = tempGrid[7][7];
-        tableGrid[3][7] = tempGrid[7][5];
-        tableGrid[5][7] = tempGrid[7][3];
-        tableGrid[7][7] = tempGrid[7][1];
-        tableGrid[7][5] = tempGrid[5][1];
-        tableGrid[7][3] = tempGrid[3][1];
-        tableGrid[7][1] = tempGrid[1][1];
-        tableGrid[5][1] = tempGrid[1][3];
-        tableGrid[3][1] = tempGrid[1][5];
+            case 2: // South
+                newPos[0] = previousPos[0] - 1;
+                newPos[1] = previousPos[1] + 1;
+                break;
 
-        tableGrid[2][2] = tempGrid[2][6];
-        tableGrid[2][4] = tempGrid[4][6];
-        tableGrid[2][6] = tempGrid[6][6];
-        tableGrid[4][6] = tempGrid[6][4];
-        tableGrid[6][6] = tempGrid[6][2];
-        tableGrid[6][4] = tempGrid[4][2];
-        tableGrid[6][2] = tempGrid[2][2];
-        tableGrid[4][2] = tempGrid[2][4];
+            case 3: // West
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] + 1;
+                break;
 
-        tableGrid[3][3] = tempGrid[3][5];
-        tableGrid[3][5] = tempGrid[5][5];
-        tableGrid[5][5] = tempGrid[5][3];
-        tableGrid[5][3] = tempGrid[3][3];
+            default:
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] - 1;
+                break;
+        }
 
-        // Key positions
-        tableGridPos[0][0] = tempGridPos[0][8];
-        tableGridPos[0][2] = tempGridPos[2][8];
-        tableGridPos[0][4] = tempGridPos[4][8];
-        tableGridPos[0][6] = tempGridPos[6][8];
-        tableGridPos[0][8] = tempGridPos[8][8];
-        tableGridPos[2][8] = tempGridPos[8][6];
-        tableGridPos[4][8] = tempGridPos[8][4];
-        tableGridPos[6][8] = tempGridPos[8][2];
-        tableGridPos[8][8] = tempGridPos[8][0];
-        tableGridPos[8][6] = tempGridPos[6][0];
-        tableGridPos[8][4] = tempGridPos[4][0];
-        tableGridPos[8][2] = tempGridPos[2][0];
-        tableGridPos[8][0] = tempGridPos[0][0];
-        tableGridPos[6][0] = tempGridPos[0][2];
-        tableGridPos[4][0] = tempGridPos[0][4];
-        tableGridPos[2][0] = tempGridPos[0][6];
-
-        tableGridPos[1][1] = tempGridPos[1][7];
-        tableGridPos[1][3] = tempGridPos[3][7];
-        tableGridPos[1][5] = tempGridPos[5][7];
-        tableGridPos[1][7] = tempGridPos[7][7];
-        tableGridPos[3][7] = tempGridPos[7][5];
-        tableGridPos[5][7] = tempGridPos[7][3];
-        tableGridPos[7][7] = tempGridPos[7][1];
-        tableGridPos[7][5] = tempGridPos[5][1];
-        tableGridPos[7][3] = tempGridPos[3][1];
-        tableGridPos[7][1] = tempGridPos[1][1];
-        tableGridPos[5][1] = tempGridPos[1][3];
-        tableGridPos[3][1] = tempGridPos[1][5];
-
-        tableGridPos[2][2] = tempGridPos[2][6];
-        tableGridPos[2][4] = tempGridPos[4][6];
-        tableGridPos[2][6] = tempGridPos[6][6];
-        tableGridPos[4][6] = tempGridPos[6][4];
-        tableGridPos[6][6] = tempGridPos[6][2];
-        tableGridPos[6][4] = tempGridPos[4][2];
-        tableGridPos[6][2] = tempGridPos[2][2];
-        tableGridPos[4][2] = tempGridPos[2][4];
-
-        tableGridPos[3][3] = tempGridPos[3][5];
-        tableGridPos[3][5] = tempGridPos[5][5];
-        tableGridPos[5][5] = tempGridPos[5][3];
-        tableGridPos[5][3] = tempGridPos[3][3];
-
-        UpdateGridPos();
+        return newPos;
     }
 
-    // Rotates the grid 180 degrees
-    private void RotateGrid180() {
-        gridRotation = (gridRotation + 2) % 4;
+    public int[] MoveKeyDownRight(int i, int rotation, int[] previousPos) {
+        int[] newPos = { 0, 0 };
 
-        int[][] tempGrid = tableGrid;
-        int[][] tempGridPos = tableGridPos;
+        /* For rotation north
+         * 
+         * newPos[0] = previousPos[0] + 1;
+         * newPos[1] = previousPos[1] + 1;
+         */
 
-        // Rule positions
-        tableGrid[0][8] = tempGrid[8][0];
-        tableGrid[2][8] = tempGrid[6][0];
-        tableGrid[4][8] = tempGrid[4][0];
-        tableGrid[6][8] = tempGrid[2][0];
-        tableGrid[8][8] = tempGrid[0][0];
-        tableGrid[8][6] = tempGrid[0][2];
-        tableGrid[8][4] = tempGrid[0][4];
-        tableGrid[8][2] = tempGrid[0][6];
-        tableGrid[8][0] = tempGrid[0][8];
-        tableGrid[6][0] = tempGrid[2][8];
-        tableGrid[4][0] = tempGrid[4][8];
-        tableGrid[2][0] = tempGrid[6][8];
-        tableGrid[0][0] = tempGrid[8][8];
-        tableGrid[0][2] = tempGrid[8][6];
-        tableGrid[0][4] = tempGrid[8][4];
-        tableGrid[0][6] = tempGrid[8][2];
+        switch (rotation) {
+            case 0: // North
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] + 1;
+                break;
 
-        tableGrid[1][7] = tempGrid[7][1];
-        tableGrid[3][7] = tempGrid[5][1];
-        tableGrid[5][7] = tempGrid[3][1];
-        tableGrid[7][7] = tempGrid[1][1];
-        tableGrid[7][5] = tempGrid[1][3];
-        tableGrid[7][3] = tempGrid[1][5];
-        tableGrid[7][1] = tempGrid[1][7];
-        tableGrid[5][1] = tempGrid[3][7];
-        tableGrid[3][1] = tempGrid[5][7];
-        tableGrid[1][1] = tempGrid[7][7];
-        tableGrid[1][3] = tempGrid[7][5];
-        tableGrid[1][5] = tempGrid[7][3];
+            case 1: // East
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] - 1;
+                break;
 
-        tableGrid[2][6] = tempGrid[6][2];
-        tableGrid[4][6] = tempGrid[6][4];
-        tableGrid[6][6] = tempGrid[2][2];
-        tableGrid[6][4] = tempGrid[2][4];
-        tableGrid[6][2] = tempGrid[2][6];
-        tableGrid[4][2] = tempGrid[4][6];
-        tableGrid[2][2] = tempGrid[6][6];
-        tableGrid[2][4] = tempGrid[6][4];
+            case 2: // South
+                newPos[0] = previousPos[0] - 1;
+                newPos[1] = previousPos[1] - 1;
+                break;
 
-        tableGrid[3][5] = tempGrid[5][3];
-        tableGrid[5][5] = tempGrid[3][3];
-        tableGrid[5][3] = tempGrid[3][5];
-        tableGrid[3][3] = tempGrid[5][5];
+            case 3: // West
+                newPos[0] = previousPos[0] - 1;
+                newPos[1] = previousPos[1] + 1;
+                break;
 
-        // Key positions
-        tableGridPos[0][8] = tempGridPos[8][0];
-        tableGridPos[2][8] = tempGridPos[6][0];
-        tableGridPos[4][8] = tempGridPos[4][0];
-        tableGridPos[6][8] = tempGridPos[2][0];
-        tableGridPos[8][8] = tempGridPos[0][0];
-        tableGridPos[8][6] = tempGridPos[0][2];
-        tableGridPos[8][4] = tempGridPos[0][4];
-        tableGridPos[8][2] = tempGridPos[0][6];
-        tableGridPos[8][0] = tempGridPos[0][8];
-        tableGridPos[6][0] = tempGridPos[2][8];
-        tableGridPos[4][0] = tempGridPos[4][8];
-        tableGridPos[2][0] = tempGridPos[6][8];
-        tableGridPos[0][0] = tempGridPos[8][8];
-        tableGridPos[0][2] = tempGridPos[8][6];
-        tableGridPos[0][4] = tempGridPos[8][4];
-        tableGridPos[0][6] = tempGridPos[8][2];
+            default:
+                newPos[0] = previousPos[0] + 1;
+                newPos[1] = previousPos[1] + 1;
+                break;
+        }
 
-        tableGridPos[1][7] = tempGridPos[7][1];
-        tableGridPos[3][7] = tempGridPos[5][1];
-        tableGridPos[5][7] = tempGridPos[3][1];
-        tableGridPos[7][7] = tempGridPos[1][1];
-        tableGridPos[7][5] = tempGridPos[1][3];
-        tableGridPos[7][3] = tempGridPos[1][5];
-        tableGridPos[7][1] = tempGridPos[1][7];
-        tableGridPos[5][1] = tempGridPos[3][7];
-        tableGridPos[3][1] = tempGridPos[5][7];
-        tableGridPos[1][1] = tempGridPos[7][7];
-        tableGridPos[1][3] = tempGridPos[7][5];
-        tableGridPos[1][5] = tempGridPos[7][3];
+        return newPos;
+    }
 
-        tableGridPos[2][6] = tempGridPos[6][2];
-        tableGridPos[4][6] = tempGridPos[6][4];
-        tableGridPos[6][6] = tempGridPos[2][2];
-        tableGridPos[6][4] = tempGridPos[2][4];
-        tableGridPos[6][2] = tempGridPos[2][6];
-        tableGridPos[4][2] = tempGridPos[4][6];
-        tableGridPos[2][2] = tempGridPos[6][6];
-        tableGridPos[2][4] = tempGridPos[6][4];
 
-        tableGridPos[3][5] = tempGridPos[5][3];
-        tableGridPos[5][5] = tempGridPos[3][3];
-        tableGridPos[5][3] = tempGridPos[3][5];
-        tableGridPos[3][3] = tempGridPos[5][5];
+    // Colorblind mode
+        /* If (colorblind mode is on) {
+         *      display the colors of the switches somewhere around the switches (not on the screen)
+         * }
+         */
 
-        UpdateGridPos();
+
+    // Twitch Plays
+#pragma warning disable 414
+    private string TwitchHelpMessage = "!{0} cycle [taps the keys in reading order] | !{0} tap/hold 1 [taps/holds first key in reading order anytime] | !{0} tap/hold 1 on 5 [taps/holds first key in reading order when last digit of the timer is a 5] | !{0} tap/hold 1 at 55 [taps/holds first key in reading order when last two digits of the timer are 55] | !{0} rapidtap 1 [taps first key in reading order rapidly for two seconds] | !{0} release [releases the held key anytime] | !{0} release on 5 [relases the held key when last digit of the timer is a 5]"; // Add " | !{0} colorblind [turns colorblind mode on]" when colorblind mode is implmented
+#pragma warning restore 414
+
+    // Commands
+    private IEnumerator ProcessTwitchCommand(string command) {
+        yield return null; // Placeholder for now
+
+        /* Commands:
+         * 
+         *          When refering to 0.5 seconds in this section - it means long enough that it doesn't count as a hold
+         * 
+         * !{0} cycle - taps each of the keys in reading order for 0.5 seconds each
+         * 
+         * !{0} tap {1} - taps key no. {1} in reading order for 0.5 seconds
+         * !{0} tap {1} on {2} - taps key no. {1} in reading order for 0.5 seconds when last digit of timer is {2}
+         * !{0} tap {1} at {2} - taps key no. {1} in reading order for 0.5 seconds when last two digits of timer are {2}
+         * 
+         * !{0} rapidtap {1} - taps key no. {1} in reading order three times in the duration of two seconds
+         * 
+         * !{0} hold {1} - holds key no. {1} in reading order
+         * !{0} hold {1} on {2} - holds key no. {1} in reading order when last digit of timer is {2}
+         * !{0} hold {1} at {2] - holds key no. {1} in reading order when last two digits of timer are {2}
+         * 
+         * !{0} release - releases the held key
+         * !{0} release on {1} - releases the held key when last digit of timer is {1}
+         * 
+         * !{0} colorblind - toggles colorblind mode (when it gets implemented)
+         */
     }
 }
