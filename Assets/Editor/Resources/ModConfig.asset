@@ -14,7 +14,7 @@ MonoBehaviour:
   id: MechanicalSwitches
   title: Mechanical Switches
   author: Espik
-  description: 'Mechanical Switches v0.3
+  description: 'Mechanical Switches v0.31
 
     "Tic tac TAK TAK TAK"
 
@@ -26,6 +26,6 @@ MonoBehaviour:
 
 
     Manual: (available soon)'
-  version: v0.3
+  version: v0.31
   outputFolder: build
   previewImage: {fileID: 2800000, guid: 2b22c4f0585d1244bbbe6722fe4e2c2c, type: 3}

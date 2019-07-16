@@ -986,11 +986,11 @@ public class MechanicalSwitches : MonoBehaviour {
                                 else {
                                     // Down-right
                                     if (serialNumberConversions[ruleNo] == true)
-                                        MoveKeyDownRight(j, mechanicalKeys[j].GetRotation(), previousPos);
+                                        newPos = MoveKeyDownRight(j, mechanicalKeys[j].GetRotation(), previousPos);
 
                                     // Down-left
                                     else
-                                        MoveKeyDownLeft(j, mechanicalKeys[j].GetRotation(), previousPos);
+                                        newPos = MoveKeyDownLeft(j, mechanicalKeys[j].GetRotation(), previousPos);
 
 
                                     tableGridPos[newPos[0]][newPos[1]] = i;
@@ -1186,153 +1186,27 @@ public class MechanicalSwitches : MonoBehaviour {
     // Tests positions
     public int[] ChecksOpenPos(int i, int[] previousPos) {
         int[] directions = { 2, 2, 2, 2 };
-        /* 0 = DL UL UR DR
-         * 1 = DR DL UL UR
-         * 2 = UL UR DR DL
-         * 3 = UR DR DL UL
-         */
-        
-        /* Cannot go (for rotation 0):
-         * DLeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0
-         * DRight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0
-         * ULeft =  previousPos[1] - 1 < 0 || tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0
-         * URight = previousPos[1] + 1 > 8 || tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0
-         */
 
-        switch (mechanicalKeys[i].GetRotation()) {
-            // North
-            case 0:
-                // Down left
-                if (previousPos[1] - 1 < 0)
-                    directions[0] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                    directions[0] = 1;
+        Func<int[], bool>[] func = {
+            (x) => x[0] + 1 > 8 || x[1] - 1 < 0,
+            (x) => x[0] + 1 > 8 || x[1] + 1 > 8,
+            (x) => x[0] - 1 < 0 || x[1] - 1 < 0,
+            (x) => x[0] - 1 < 0 || x[1] + 1 > 8
+        };
 
-                // Down right
-                if (previousPos[0] + 1 > 8)
-                    directions[1] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
-                    directions[1] = 1;
+        Func<int[], bool>[] gridPos = {
+            (x) => tableGridPos[x[0] + 1][x[1] - 1] != 0,
+            (x) => tableGridPos[x[0] + 1][x[1] + 1] != 0,
+            (x) => tableGridPos[x[0] - 1][x[1] - 1] != 0,
+            (x) => tableGridPos[x[0] - 1][x[1] + 1] != 0
+        };
 
-                // Up left
-                if (previousPos[0] - 1 < 0)
-                    directions[2] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                    directions[2] = 1;
-
-                // Up right
-                if (previousPos[1] + 1 > 8)
-                    directions[3] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
-                    directions[3] = 1;
-                break;
-
-            // East
-            case 1:
-                // Down left
-                if (previousPos[0] - 1 < 0)
-                    directions[0] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                    directions[0] = 1;
-
-                // Down right
-                if (previousPos[1] - 1 < 0)
-                    directions[1] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                    directions[1] = 1;
-
-                // Up left
-                if (previousPos[1] + 1 > 8)
-                    directions[2] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
-                    directions[2] = 1;
-
-                // Up right
-                if (previousPos[0] + 1 > 8)
-                    directions[3] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
-                    directions[3] = 1;
-                break;
-
-            // South
-            case 2:
-                // Down left
-                if (previousPos[1] + 1 > 8)
-                    directions[0] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
-                    directions[0] = 1;
-
-                // Down right
-                if (previousPos[0] - 1 < 0)
-                    directions[1] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                    directions[1] = 1;
-
-                // Up left
-                if (previousPos[0] + 1 > 8)
-                    directions[2] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
-                    directions[2] = 1;
-
-                // Up right
-                if (previousPos[1] - 1 < 0)
-                    directions[3] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                    directions[3] = 1;
-                break;
-
-            // West
-            case 3:
-                // Down left
-                if (previousPos[0] + 1 > 8)
-                    directions[0] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
-                    directions[0] = 1;
-
-                // Down right
-                if (previousPos[1] + 1 > 8)
-                    directions[1] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
-                    directions[1] = 1;
-
-                // Up left
-                if (previousPos[1] - 1 < 0)
-                    directions[2] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                    directions[2] = 1;
-
-                // Up right
-                if (previousPos[0] - 1 < 0)
-                    directions[3] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                    directions[3] = 1;
-                break;
-
-            default:
-                // Down left
-                if (previousPos[1] - 1 < 0)
-                    directions[0] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] - 1] != 0)
-                    directions[0] = 1;
-
-                // Down right
-                if (previousPos[0] + 1 > 8)
-                    directions[1] = 0;
-                else if (tableGridPos[previousPos[0] + 1][previousPos[1] + 1] != 0)
-                    directions[1] = 1;
-
-                // Up left
-                if (previousPos[0] - 1 < 0)
-                    directions[2] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] - 1] != 0)
-                    directions[2] = 1;
-
-                // Up right
-                if (previousPos[1] + 1 > 8)
-                    directions[3] = 0;
-                else if (tableGridPos[previousPos[0] - 1][previousPos[1] + 1] != 0)
-                    directions[3] = 1;
-                break;
+        for (int j = 0; j < 4; j++) {
+            int rot = (mechanicalKeys[i].GetRotation() + j) % 4;
+            if (func[rot](previousPos))
+                directions[j] = 0;
+            else if (gridPos[rot](previousPos))
+                directions[j] = 1;
         }
 
         return directions;
