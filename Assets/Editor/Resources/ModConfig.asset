@@ -14,7 +14,7 @@ MonoBehaviour:
   id: MechanicalSwitches
   title: Mechanical Switches
   author: Espik
-  description: 'Mechanical Switches v0.31
+  description: 'Mechanical Switches v0.9
 
     "Tic tac TAK TAK TAK"
 
@@ -25,7 +25,10 @@ MonoBehaviour:
     Authors: Espik, Pruz
 
 
-    Manual: (available soon)'
-  version: v0.31
+    Manual: https://ktane.timwi.de/HTML/Mechanical%20Switches.html
+
+
+    Source Code: https://github.com/Espik/Mechanical-Switches'
+  version: v0.9
   outputFolder: build
   previewImage: {fileID: 2800000, guid: 2b22c4f0585d1244bbbe6722fe4e2c2c, type: 3}

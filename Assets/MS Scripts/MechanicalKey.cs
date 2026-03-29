@@ -1,12 +1,56 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using KModkit;
 
 public class MechanicalKey {
-    // Properties
+    private int modulePosition;
+    private KeySwitch keySwitch;
+    private int number;
+
+    private int[] tablePosition;
+    private int rotation;
+
+    public MechanicalKey(int modulePosition, KeySwitch keySwitch) {
+        this.modulePosition = modulePosition;
+        this.keySwitch = keySwitch;
+
+        number = modulePosition;
+
+        tablePosition = new[] { 0, 2 * number };
+        rotation = 0;
+    }
+
+    public void SetNumber(int number) {
+        this.number = number;
+    }
+
+    public void SetTablePosition(int[] tablePosition) {
+        this.tablePosition = tablePosition;
+    }
+
+    public void SetRotation(int rotation) {
+        this.rotation = rotation;
+    }
+
+    public int GetModulePosition() {
+        return modulePosition;
+    }
+
+    public KeySwitch GetKeySwitch() {
+        return keySwitch;
+    }
+
+    public int GetNumber() {
+        return number;
+    }
+
+    public int[] GetTablePosition() {
+        return tablePosition;
+    }
+
+    public int GetRotation() {
+        return rotation;
+    }
+
+    /*// Properties
     private KMSelectable key;
     private KeySwitch keySwitch;
     private Renderer screen;
@@ -20,11 +64,11 @@ public class MechanicalKey {
 
     private int rotation = 0;
     private string rotationLogger = "North";
-    /* North = 0
+    * North = 0
      * East = 1
      * South = 2
      * West = 3
-     */
+     *
 
     private int[] gridPos = { 0, 0 };
     private string[] gridPosLogger = new string[2];
@@ -194,5 +238,5 @@ public class MechanicalKey {
 
     public string GetGridPosLogger1() {
         return gridPosLogger[1];
-    }
+    }*/
 }

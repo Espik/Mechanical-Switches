@@ -1,83 +1,42 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using KModkit;
+﻿using UnityEngine;
 
 public class KeySwitch {
-    // Properties
+    private int id;
+    private int column;
+
     private string name;
     private string brand;
-    private string color;
-    private Material material;
-    private bool clear;
+    private Color color;
+    private string colorName;
 
-    private string sound;
-    private float force;
+    private string category;
+    private float[] force;
     private float actuation;
     private float travelDistance;
 
-    private int column;
+    public KeySwitch(int id, int column, string name, string brand, Color color, string colorName, string category, float[] force, float actuation, float travelDistance) {
+        this.id = id;
+        this.column = column;
 
-    // Default setup
-    public KeySwitch(string name, string brand, string color, Material material, bool clear, string sound, float force, float actuation, float travelDistance, int column) {
         this.name = name;
         this.brand = brand;
         this.color = color;
-        this.material = material;
-        this.clear = clear;
-        this.sound = sound;
+        this.colorName = colorName;
+
+        this.category = category;
         this.force = force;
         this.actuation = actuation;
         this.travelDistance = travelDistance;
-        this.column = column;
     }
 
-    
-    // Sets info
-    public void SetName(string name) {
-        this.name = name;
+    public int GetId() {
+        return id;
     }
 
-    public void SetBrand(string brand) {
-        this.brand = brand;
+    public int GetColumn() {
+        return column;
     }
 
-    public void SetColor(string color) {
-        this.color = color;
-    }
-
-    public void SetMaterial(Material material) {
-        this.material = material;
-    }
-
-    public void SetClear(bool clear) {
-        this.clear = clear;
-    }
-
-    public void SetSound(string sound) {
-        this.sound = sound;
-    }
-
-    public void SetForce(float force) {
-        this.force = force;
-    }
-
-    public void SetActuation(float actuation) {
-        this.actuation = actuation;
-    }
-
-    public void SetTravelDistance(float travelDistance) {
-        this.travelDistance = travelDistance;
-    }
-
-    public void SetColumn(int column) {
-        this.column = column;
-    }
-
-
-    // Gets info
     public string GetName() {
         return name;
     }
@@ -86,23 +45,19 @@ public class KeySwitch {
         return brand;
     }
 
-    public string GetColor() {
+    public Color GetColor() {
         return color;
     }
 
-    public Material GetMaterial() {
-        return material;
+    public string GetColorName() {
+        return colorName;
     }
 
-    public bool GetClear() {
-        return clear;
+    public string GetCategory() {
+        return category;
     }
 
-    public string GetSound() {
-        return sound;
-    }
-
-    public float GetForce() {
+    public float[] GetForce() {
         return force;
     }
 
@@ -112,9 +67,5 @@ public class KeySwitch {
 
     public float GetTravelDistance() {
         return travelDistance;
-    }
-
-    public int GetColumn() {
-        return column;
     }
 }
