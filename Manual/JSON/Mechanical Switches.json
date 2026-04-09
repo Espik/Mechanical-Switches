@@ -1,2 +1,18 @@
-Replace this with a JSON generated at ktane.timwi.de (see Tools -> Create new module)
-Don't forget to add Tags to the description that describe what your module LOOKS LIKE to be able to find it in the list from the defuser's description.
+{
+  "Contributors": {
+    "Developer": [ "Espik" ],
+    "Manual": [ "Pruz" ]
+  },
+  "DefuserDifficulty": "Hard",
+  "Description": "Press five keys with mechanical switches in the right order. Watch out for faulty keys! Tags: keyboard, five-buttons, leds",
+  "ExpertDifficulty": "Hard",
+  "ModuleID": "MechanicalSwitches",
+  "Name": "Mechanical Switches",
+  "Origin": "Mods",
+  "Published": "2026-04-09",
+  "SortKey": "MECHANICALSWITCHES",
+  "SourceUrl": "https://github.com/Espik/Mechanical-Switches",
+  "SteamID": "1805419952",
+  "Symbol": "Mksw",
+  "Type": "Regular"
+}
